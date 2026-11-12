@@ -620,8 +620,30 @@ class PlayerOverlay(QWidget):
         self.show_controls(keep=True)
 
     def set_slideshow(self, running):
-        self.btn_slideshow.set_icon_name("pause" if running else "slideshow")
-        self.btn_slideshow.setToolTip(t("stop_slideshow") if running else t("slideshow"))
+        model = getattr(self, "_model_mode", False)
+        self.btn_slideshow.set_icon_name("pause" if running else ("rotate_360" if model else "slideshow"))
+        if model:
+            self.btn_slideshow.setToolTip(t("stop_autorotate") if running else t("autorotate"))
+        else:
+            self.btn_slideshow.setToolTip(t("stop_slideshow") if running else t("slideshow"))
+
+    def set_model_mode(self, on):
+        """Resim satırı 3D model için de kullanılır; yalnızca simge ve ipuçları değişir."""
+        on = bool(on)
+        prev = getattr(self, "_model_mode", None)
+        if prev == on:
+            return
+        self._model_mode = on
+        if on:
+            self.set_slideshow(False)
+        elif prev:
+            # resim satırının ilk görünümüne dön
+            self.btn_slideshow.set_icon_name("play")
+            self.btn_slideshow.setToolTip(t("slideshow"))
+        self.btn_iprev.setToolTip(t("prev_model") if on else t("prev_image"))
+        self.btn_inext.setToolTip(t("next_model") if on else t("next_image"))
+        self.btn_fit.setToolTip(t("reset_view") if on else t("fit"))
+        self.btn_rotate.setToolTip(t("flip_model") if on else t("rotate"))
 
     def set_time(self, cur, length):
         self.seekbar.set_length(length)

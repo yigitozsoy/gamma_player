@@ -334,6 +334,23 @@ class VLCEngine(QObject):
         except Exception:
             return False
 
+    def video_track_count(self) -> int:
+        """Dosyadaki görüntü kanalı sayısı (-1: henüz bilinmiyor). Görüntü penceresi (vout) geç açılsa da doğru."""
+        try:
+            n = self.mp.video_get_track_count()
+            if n and n > 0:
+                return n
+            m = self.mp.get_media()
+            if m is None:
+                return -1
+            tracks = list(m.tracks_get() or [])
+            if not tracks:
+                return -1
+            import vlc
+            return sum(1 for tr in tracks if tr.type == vlc.TrackType.video)
+        except Exception:
+            return -1
+
     def set_aspect(self, ratio):
         self.mp.video_set_aspect_ratio(ratio)
 

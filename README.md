@@ -5,7 +5,7 @@
 <h1 align="center">gamma</h1>
 
 <p align="center">
-  YouTube görünümlü, VLC motorlu evrensel medya oynatıcı — video, müzik ve görseller tek pencerede.
+  YouTube görünümlü, VLC motorlu evrensel medya oynatıcı — video, müzik, görseller ve 3D modeller tek pencerede.
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@ Windows, uygulamaların kendini varsayılan yapmasına izin vermez; seçimi siz 
 
 **YouTube tarzı arayüz**
 - Solda oynatıcı, altında dosya adı ve işlem düğmeleri; ayrıntılar **Bilgi** düğmesinde
-- Sağda **"Bu klasörde"** listesi: klasörde başka dosya varsa otomatik açılır; küçük resimler, süre rozetleri, Tümü / Videolar / Müzik / Görseller çipleri, sıralama; isteğe bağlı arama çubuğu
+- Sağda **"Bu klasörde"** listesi: klasörde başka dosya varsa otomatik açılır; küçük resimler, süre rozetleri, Tümü / Videolar / Müzik / Görseller / 3D çipleri, sıralama; isteğe bağlı arama çubuğu
 - Video üstünde kırmızı zaman çubuğu ve **gezinirken kare önizlemesi**, genişleyen ses kaydırıcısı, otomatik oynatma, ⚙ ayarlar menüsü
 - **Karanlık / aydınlık tema**, seçilebilir **tema rengi** (gri, kırmızı, mavi, yeşil…), Türkçe / İngilizce
 - Windows **Snap** desteği: kenara/köşeye sürükleyince yarım, çeyrek ve tam ekran; Win+ok tuşları
@@ -42,6 +42,13 @@ Windows, uygulamaların kendini varsayılan yapmasına izin vermez; seçimi siz 
 - Video: MP4, MKV, AVI, MOV, WebM, WMV, FLV, TS/M2TS, MPG, 3GP… (VLC'nin açtığı her şey)
 - Müzik: MP3, FLAC, WAV, M4A, AAC, OGG, Opus, WMA, ALAC… — kapak resmi ve etiketlerle
 - Görsel: JPG (EXIF yönü doğru), PNG, WebP, GIF / animasyonlu WebP / APNG, HEIC, AVIF, **JPEG XL**, ICO, SVG, BMP, TIFF, PSD, TGA, QOI…
+- **3D model** (3.0): **STL** (ikili / ASCII), **OBJ** (+ MTL renk ve dokular), **GLB / glTF** (sahne, malzeme rengi, doku, köşe rengi), **PLY**, **OFF**, **3MF** — kenar listesinde 3D küçük resimler
+
+**3D görüntüleyici**
+- Fareyle döndür (sol sürükle), kaydır (sağ / orta sürükle), tekerlekle yakınlaştır; çift tık tam ekran
+- Alttaki çubukta önceki / sonraki model, **otomatik döndürme**, yakınlaştırma, görünümü sıfırla, modeli çevir (Z-yukarı / Y-yukarı karışıklığı için)
+- Sağ tık: tel kafes, zemin ızgarası, görüntüyü kopyala / PNG kaydet, model bilgisi (üçgen, köşe, boyut)
+- Kurulumla birlikte **Windows Gezgini'nde STL ve OBJ önizlemeleri** (gamma varsayılan uygulamaysa köşede gamma simgesi)
 
 **Oynatma ve pencere**
 - Kaldığın yerden devam, döngü, karışık çal, A-B döngüsü, uyku zamanlayıcısı
@@ -84,6 +91,7 @@ Windows, uygulamaların kendini varsayılan yapmasına izin vermez; seçimi siz 
 | S · B · E | Ekran görüntüsü · A-B döngüsü · kes/düzenle |
 | Ctrl+O · Ctrl+Shift+O | Dosya / klasör aç |
 | Ctrl+T · Ctrl+D · F1 | Her zaman üstte · tema · tüm kısayollar |
+| 3D: Sürükle · Tekerlek · 0 · R · W · G | Döndür · yakınlaştır · sıfırla · çevir · tel kafes · ızgara |
 
 ## Kaynaktan çalıştırma
 

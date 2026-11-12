@@ -24,13 +24,18 @@ IMAGE_EXT = {
     ".blp", ".ftex", ".msp", ".fits", ".exr", ".hdr",
 }
 
+# 3D modeller (model_io.py okur)
+MODEL_EXT = {".stl", ".obj", ".ply", ".off", ".glb", ".gltf", ".3mf",
+             ".step", ".stp", ".iges", ".igs"}   # CAD: isteğe bağlı STEP motoru (model_io.load_cad)
+
 SUBTITLE_EXT = {".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".smi", ".sami", ".txt", ".usf", ".ttml", ".dfxp", ".mpl", ".jss"}
 
-ALL_MEDIA_EXT = VIDEO_EXT | AUDIO_EXT | IMAGE_EXT
+ALL_MEDIA_EXT = VIDEO_EXT | AUDIO_EXT | IMAGE_EXT | MODEL_EXT
 
 KIND_VIDEO = "video"
 KIND_AUDIO = "audio"
 KIND_IMAGE = "image"
+KIND_MODEL = "model"
 
 
 def ext_of(path: str) -> str:
@@ -45,6 +50,8 @@ def kind_of(path: str):
         return KIND_AUDIO
     if e in IMAGE_EXT:
         return KIND_IMAGE
+    if e in MODEL_EXT:
+        return KIND_MODEL
     return None
 
 
@@ -60,5 +67,6 @@ def dialog_filter(tr) -> str:
         f"{tr('videos')} ({pat(VIDEO_EXT)})",
         f"{tr('music')} ({pat(AUDIO_EXT)})",
         f"{tr('images')} ({pat(IMAGE_EXT)})",
+        f"{tr('models')} ({pat(MODEL_EXT)})",
         f"{tr('all_files')} (*.*)",
     ])

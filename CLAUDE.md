@@ -80,6 +80,8 @@ gammaplayer/
   titlebar.py           özel başlık çubuğu (çerçevesiz pencere)
   views.py              ana sayfa, müzik görünümü (kapak + etiketler), alttaki bilgi çubuğu
   image_viewer.py       zoom/pan/kırpma/damlalık
+  model_io.py           3D okuma (STL/OBJ/PLY/OFF/glTF/GLB/3MF, numpy) + yazılımla küçük resim çizimi
+  model_viewer.py       3D görüntüleyici (QOpenGLWidget, GLSL 1.20; döndür/kaydır/yakınlaştır)
   image_editor.py       görsel düzenleyici paneli (render() saf fonksiyon, DEFAULT_STATE)
   video_editor.py       kes/kırp/filigran/altyazı gömme diyaloğu (ffmpeg komutu üretir)
   bgremove.py           arka plan kaldırma (numpy, kenara bağlı bölge yayılımı)
@@ -130,6 +132,53 @@ Bunlar zor bulunmuş şeyler. Değiştirmeden önce nedenini anla.
 - **Gezgin sırası:** varsayılan sıralama, klasörün Windows Gezgini'ndeki sırası (PowerShell Shell.Application COM).
 - **ffmpeg yolu:** `thumbs._find_ffmpeg()` imageio_ffmpeg'i import etmeden ikiliyi bulur (donmuş exe'de `_MEIPASS`).
 - **Donmuş (PyInstaller) exe:** VLC `<exe>\vlc\` içine gömülü; önce oraya, sonra Program Files VLC'ye bakılır.
+- **3D (3.0):** `ModelViewer` ilk modelde oluşturulur (PAGE_MODEL = 4, `model_host` içinde). Alttaki kontrol
+  satırı resim satırıyla ortak (`overlay.set_model_mode`): slayt düğmesi = otomatik döndür, sığdır = görünümü
+  sıfırla, döndür = modeli çevir. **QOpenGLWidget KULLANMA:** ana pencereye ilk eklenince Qt bütün pencereyi
+  yeniden oluşturuyor (HWND değişir → pencere kapanıp açılır, VLC görüntüsü kaybolur, Snap stilleri gider).
+  Çizim `_GLView(QOpenGLWindow)` içinde, `createWindowContainer` ile (WA_DontCreateNativeAncestors); `ModelViewer`
+  bir QWidget sarmalayıcıdır ve `__getattr__` ile her şeyi `_GLView`'e aktarır. `QT_WIDGETS_RHI` ile baştan
+  OpenGL'li pencere de çözer ama açılışa ~0,7 sn ekliyor. `image()` her zaman FBO'ya yeniden çizer; kapanışta
+  `release_gl` (aboutToQuit). Smoke test 3D'den sonra pencere kimliğinin değişmediğini denetler.
+- **Yalnızca ses içeren mp4:** VLC "vout 0" olayını her zaman göndermiyor; `load_item` her videoda 1,2 sn sonra
+  `_check_audio_only` çağırır. Karar `has_vout` + `video_track_count()` ile verilir (görüntü geç gelse de yanılmaz).
+- **Kapanışta çökme:** küçük resim işi (büyük model) uygulama kapanırken sürüyorsa silinmiş sinyale emit → PyQt
+  abort (0xC0000409). `_ThumbJob._emit` + `ThumbnailService.closed` (aboutToQuit'te shutdown) bunu engeller. Modeller Y-yukarıya çevrilir (STL/PLY/OFF/3MF Z-yukarı kabul edilir).
+  `gamma.spec`'te QtOpenGL / QtOpenGLWidgets artık hariç tutulmamalı.
+  İç UV düzeni OBJ gibidir (v=0 resmin altı); glTF okurken 1-v yapılır, GL'ye doku `flipped(Vertical)` yüklenir.
+  Ölçüler (`D`, `model_dims`, varsayılan kapalı): glTF metre, diğerleri mm kabul edilir (`dims_unit`).
+  Saydam PNG: `ModelViewer.image(transparent=True)` ekran dışı FBO'da 2 kat çizer, boşluğu kırpar.
+  Dönüştürme: `model_io.export_model` → STL/OBJ(+mtl+png)/3MF(renkli)/GLB/PLY; metre↔mm ve Y↔Z-yukarı çevrilir.
+- **3MF okuma hızı:** `<mesh>` blokları ElementTree'ye verilmez (`_cut_meshes`); köşe/üçgenler tırnak içi
+  değerlerden numpy ile okunur (`_quoted_cols`), Bambu'nun `paint_color` gibi öznitelikleri önce atılır, olmazsa
+  düzenli ifade yoluna düşülür. Kullanıcı gömülü 3MF önizleme resmini istemedi (kendi çizimimiz kalsın).
+- **3D küçük resim sınırları:** `model_thumb_count` (açık dosyaya en yakın N model, listede görünen sıraya göre,
+  varsayılan 20) ve `model_thumb_mb` (varsayılan 20 MB). Sınır dışı model önbelleğe "resim yok" yazılmadan simgeyle
+  gösterilir; açılınca yüklü modelden çizilir (`store_model_thumb`). Model küçük resimleri `_MODEL_LOCK` ile tek tek.
+- **STEP / IGES (isteğe bağlı):** motor gmsh (OpenCASCADE içinde, tek ~85 MB DLL). Exe'ye gömülmez
+  (`gamma.spec` EXCLUDES "gmsh"); build.ps1 `gmsh.py` + DLL'i `build\dist\gamma\step\` içine kopyalar, kurulumda
+  "step" görevi (Ek bileşenler, varsayılan tikli) seçilmezse klasör kurulmaz/silinir ve CAD uzantıları kaydedilmez.
+  `model_io.load_cad`: `occ.importShapes` + `mesh.importStl()` (hızlı BRepMesh; `generate` çok yavaş), renk yüzey →
+  hacim sırasıyla, hacim/alan `occ.getMass` ile kesin (üçgenler kapalı değil). gmsh iş parçacığı güvenli değil →
+  kilit; Türkçe/Unicode yolu açamaz → geçici ASCII kopya; tek girişlik önbellek her çağrıda yeni Part döndürür
+  (Z-yukarı çevirisi iki kez uygulanmasın). gmsh yoksa `ModelError("cad_missing")`. Gezgin küçük resmi yok.
+- **Gezgin küçük resimleri (STL/OBJ/PLY/OFF/GLB/glTF):** `packaging/thumbnail/GammaThumbs.cs` — .NET Framework 4
+  COM sunucusu, build.ps1 Windows'taki `csc.exe` ile derler (`/r:System.Drawing.dll`, doku çözmek için).
+  İki sınıf: `Provider` (IInitializeWithStream; .stl .obj .ply .off .glb) ve `FileProvider` (IInitializeWithFile,
+  CLSID {437a1563…}; .gltf — harici .bin/doku yan klasörden okunur). Biçim içerikten tanınır. GLB/glTF'de
+  malzeme rengi + PNG/JPEG doku (512 px'e küçültülür), PLY/OFF'ta renkler çizilir; Draco/meshopt atlanır.
+  Kurulum, regasm olmadan HKCU CLSID (mscoree.dll + CodeBase) ve `SystemFileAssociations\.<uzantı>\ShellEx\{e357fccd…}` yazar.
+- **Kurulumdaki "Dosya türleri" sayfası:** installer.iss [Code] içinde TNewCheckListBox (gruplar + tek tek uzantılar,
+  hepsi tikli). Liste `make_meta.py` → `extensions_code.iss`; kayıtlar `Check: AssocSel('.mp4')`. Güncellemede
+  yalnızca kaldırılan tikler `AssocOff` olarak saklanır (yeni türler tikli gelir).
+  Köşedeki uygulama simgesini Gezgin kendisi ekler (varsayılan uygulamanın simgesi). 3MF'nin kendi gömülü
+  önizlemesi var, ona dokunulmuyor. C# 5 sözdizimi kullan (csc 4.x eski).
+  `DisableProcessIsolation=1` şart: yalıtılmış önizleme işlemi (dllhost) HKCU COM kayıtlarını görmüyor
+  (REGDB_E_CLASSNOTREG). Bu yüzden DLL Gezgin'in içinde çalışır; 200 MB üstü dosyalar atlanır, bellek idareli
+  kullanılır. Gezgin DLL'i kilitler, yeniden derlemede dosya meşgul olabilir. Kurulum bu yüzden
+  `CloseApplicationsFilter=*.exe` kullanır (yoksa Gezgin'i kapatmayı öneriyor, kapatınca masaüstü gidiyor) ve
+  ssInstall'da kilitli DLL'in adını `GammaThumbs.dll.N.old` yapıp yenisini yazar (`MoveAsideThumbDll`). Kullanıcının bilgisayarında
+  test için `build\thumbnail\GammaThumbs.dll` HKCU'ya kayıtlı (2026-11-12); kurulum bunu kurulum klasörüne çevirir.
 
 ### Kod yazım alışkanlıkları
 - Yorumlar ve docstring'ler **Türkçe**. Kullanıcıya görünen her metin `i18n.py`'de `(tr, en)` çifti olarak
@@ -144,7 +193,7 @@ Bunlar zor bulunmuş şeyler. Değiştirmeden önce nedenini anla.
 ## 5. Test
 
 ```powershell
-python tests/smoke_test.py            # çekirdek + gerçek arayüz, ~15 sn, 24 adım
+python tests/smoke_test.py            # çekirdek + gerçek arayüz, ~15 sn, 30 adım
 python tests/smoke_test.py --no-gui   # yalnızca çekirdek
 ```
 
@@ -153,6 +202,10 @@ python tests/smoke_test.py --no-gui   # yalnızca çekirdek
   ayarla. Bir kez test betiği gerçek tercihlere `single_instance=False` yazmıştı.
 - Görsel doğrulama için `widget.grab()` veya VLC anlık görüntüsü kullan. **Ekranın bir bölgesini yakalama**:
   kullanıcının diğer pencereleri (tarayıcı vb.) görüntüye girdi. Yanlışlıkla girerse dosyayı sil ve içeriğini anlatma.
+- **VLC:** VLC şu an bilgisayarda kurulu. Kullanıcı, gamma'yı bir süre kullanıp sorunlar giderildikten sonra
+  kaldırmayı düşünüyor. Kaynaktan çalıştırma, testler ve yerel derleme `C:\Program Files\VideoLAN\VLC`
+  gerektirir. Kaldırılmışsa önce
+  `winget install VideoLAN.VLC` ile kur (kurulu gamma'nın kendi gömülü VLC'si var, ona dokunma).
 - Lint: `python -m pyflakes gammaplayer` temiz olmalı.
 - Yeni özellik eklenince `tests/smoke_test.py`'ye bir adım eklemek iyi olur.
 

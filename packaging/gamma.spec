@@ -8,8 +8,10 @@ ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 datas = [(os.path.join(ROOT, "gammaplayer", "assets"), os.path.join("gammaplayer", "assets"))]
 binaries = []
 hiddenimports = [
-    "PyQt6.QtSvg", "PyQt6.QtNetwork", "vlc",
+    "PyQt6.QtSvg", "PyQt6.QtNetwork", "PyQt6.QtOpenGL", "PyQt6.QtOpenGLWidgets", "vlc",
     "imagecodecs._jpegxl", "imagecodecs._shared", "imagecodecs._imcd",
+    # İsteğe bağlı STEP motoru (gmsh.py, <exe>\step\ klasöründen yüklenir) bu standart modülleri kullanır
+    "ctypes.util", "signal", "platform",
 ]
 for pkg in ("imageio_ffmpeg", "pillow_heif"):
     d, b, h = collect_all(pkg)
@@ -27,7 +29,8 @@ EXCLUDES = [
     "PyQt6.QtQuick", "PyQt6.QtQuickWidgets", "PyQt6.Qt3DCore", "PyQt6.QtBluetooth", "PyQt6.QtSql",
     "PyQt6.QtTest", "PyQt6.QtDesigner", "PyQt6.QtHelp", "PyQt6.QtPdf", "PyQt6.QtPdfWidgets",
     "PyQt6.QtMultimedia", "PyQt6.QtMultimediaWidgets", "PyQt6.QtPositioning", "PyQt6.QtSensors",
-    "PyQt6.QtSerialPort", "PyQt6.QtOpenGL", "PyQt6.QtOpenGLWidgets", "PyQt6.QtCharts",
+    "PyQt6.QtSerialPort", "PyQt6.QtCharts",  # QtOpenGL 3D görüntüleyici için gerekli
+    "gmsh",   # STEP motoru ana pakete girmez; build.ps1 ayrı "step" klasörüne koyar (kurulumda isteğe bağlı)
 ]
 
 a = Analysis(

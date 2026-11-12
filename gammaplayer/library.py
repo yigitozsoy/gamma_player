@@ -5,7 +5,7 @@ import os
 import random
 from datetime import datetime
 
-from .formats import kind_of, KIND_VIDEO, KIND_AUDIO, KIND_IMAGE, ext_of
+from .formats import kind_of, KIND_VIDEO, KIND_AUDIO, KIND_IMAGE, KIND_MODEL, ext_of
 
 try:
     _StrCmpLogicalW = ctypes.windll.shlwapi.StrCmpLogicalW
@@ -53,6 +53,10 @@ class MediaItem:
         return self.kind == KIND_IMAGE
 
     @property
+    def is_model(self):
+        return self.kind == KIND_MODEL
+
+    @property
     def is_playable(self):
         return self.kind in (KIND_VIDEO, KIND_AUDIO)
 
@@ -83,7 +87,7 @@ def fmt_time(ms: int) -> str:
 
 
 class Library:
-    FILTERS = ("all", "video", "audio", "image")
+    FILTERS = ("all", "video", "audio", "image", "model")
     SORTS = ("explorer", "name", "name_desc", "date", "date_asc", "size", "size_asc", "type")
 
     def __init__(self):
@@ -223,7 +227,7 @@ class Library:
         return -1
 
     def counts(self):
-        c = {"all": len(self.all_items), "video": 0, "audio": 0, "image": 0}
+        c = {"all": len(self.all_items), "video": 0, "audio": 0, "image": 0, "model": 0}
         for i in self.all_items:
             c[i.kind] = c.get(i.kind, 0) + 1
         return c

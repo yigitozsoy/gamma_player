@@ -90,7 +90,7 @@ class HomeView(QWidget):
         self.recent_title.setVisible(bool(rec))
         for n, p in enumerate(rec):
             k = kind_of(p) or ("folder" if os.path.isdir(p) else "video")
-            name = {"video": "movie", "audio": "music", "image": "image"}.get(k, "folder")
+            name = {"video": "movie", "audio": "music", "image": "image", "model": "view_in_ar"}.get(k, "folder")
             b = Pill("  " + os.path.basename(p) if len(os.path.basename(p)) < 38 else
                      "  " + os.path.basename(p)[:35] + "…", name)
             b.setToolTip(p)
@@ -303,7 +303,8 @@ class InfoBar(QWidget):
         row.addLayout(self.btn_box)
         self.buttons = {}
         for key, ic in (("edit", "cut"), ("snapshot", "camera"), ("subtitle", "subtitles"),
-                        ("reveal", "folder_open"), ("info", "info"), ("delete", "delete")):
+                        # "Klasörde göster": klasör + ok (düz klasör simgesi "klasör aç" düğmeleriyle karışıyordu)
+                        ("reveal", "drive_file_move"), ("info", "info"), ("delete", "delete")):
             b = Pill("  " + t("act_" + key), ic)
             b._label = t("act_" + key)
             b.setToolTip(b._label)
@@ -329,6 +330,7 @@ class InfoBar(QWidget):
             self.btn_box.addWidget(w)
             self._uvis[key] = bool(vis)
         self._apply_visibility()
+        self._apply_labels()
 
     def _apply_visibility(self):
         kind = self._kind
@@ -336,13 +338,24 @@ class InfoBar(QWidget):
             ok = vis
             if key in ("snapshot", "subtitle"):
                 ok = ok and kind == "video"
+            elif key == "edit":
+                ok = ok and kind != "model"   # 3D modeller için düzenleyici yok
             self._widget(key).setVisible(ok)
 
     def _apply_labels(self):
-        compact = self.width() < 900
+        # Varsayılan: yalnız simge (adı fareyle üstüne gelince görünür); Tercihler'den adlar açılabilir
+        from . import layout_prefs as lp
+        compact = not lp.get("infobar_labels") or self.width() < 900
         for b in self.buttons.values():
             b.setText("" if compact else "  " + b._label)
             b.setToolTip(b._label)
+            if compact:   # YouTube'daki gibi yuvarlak simge düğmesi
+                b.setFixedWidth(36)
+                b.setStyleSheet("QPushButton#Pill { padding: 0px; text-align: center; }")
+            else:
+                b.setMinimumWidth(0)
+                b.setMaximumWidth(16777215)
+                b.setStyleSheet("")
 
     def set_item(self, item, counts_text="", details=""):
         self.title.setText(item.title if item else "")

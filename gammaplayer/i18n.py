@@ -14,6 +14,7 @@ S = {
     "discard": ("Değişiklikleri at", "Discard"), "original": ("Orijinal", "Original"),
     "video": ("Video", "Video"), "audio": ("Ses", "Audio"), "image": ("Görsel", "Image"),
     "videos": ("Videolar", "Videos"), "music": ("Müzik", "Music"), "images": ("Görseller", "Images"),
+    "model": ("3D model", "3D model"), "models": ("3D modeller", "3D models"), "yes": ("Var", "Yes"),
     "all_media": ("Tüm medya dosyaları", "All media files"), "all_files": ("Tüm dosyalar", "All files"),
     "subtitle_files": ("Altyazı dosyaları", "Subtitle files"),
     # başlık çubuğu
@@ -27,20 +28,20 @@ S = {
     "preferences": ("Seçenekler", "Preferences"), "toggle_panel": ("Yan paneli aç/kapat", "Toggle side panel"),
     # ana sayfa
     "welcome": ("gamma'ya hoş geldin", "Welcome to gamma"),
-    "welcome_sub": ("Video, müzik veya görseli pencereye sürükle ya da bir dosya/klasör aç.\n"
+    "welcome_sub": ("Video, müzik, görsel ya da 3D modeli pencereye sürükle veya bir dosya/klasör aç.\n"
                     "Klasördeki her şey sağdaki listede görünür.",
-                    "Drag a video, song or image here, or open a file/folder.\n"
+                    "Drag a video, song, image or 3D model here, or open a file/folder.\n"
                     "Everything in the folder appears in the list on the right."),
     "recent": ("Son açılanlar", "Recent"),
     "formats_line": ("MP4 · MKV · AVI · MOV · WebM · MP3 · FLAC · WAV · M4A · OGG · JPG · PNG · WebP · GIF · "
-                     "HEIC · AVIF · JXL · ICO · SVG · PSD · TIFF ve daha fazlası",
+                     "HEIC · AVIF · JXL · ICO · SVG · PSD · TIFF · STL · OBJ · GLB ve daha fazlası",
                      "MP4 · MKV · AVI · MOV · WebM · MP3 · FLAC · WAV · M4A · OGG · JPG · PNG · WebP · GIF · "
-                     "HEIC · AVIF · JXL · ICO · SVG · PSD · TIFF and more"),
+                     "HEIC · AVIF · JXL · ICO · SVG · PSD · TIFF · STL · OBJ · GLB and more"),
     # yan panel
     "in_this_folder": ("Bu klasörde", "In this folder"), "n_items": ("{n} medya", "{n} items"),
     "sort_by": ("Sırala", "Sort"), "hide_panel": ("Paneli gizle", "Hide panel"),
     "f_all": ("Tümü", "All"), "f_video": ("Videolar", "Videos"), "f_audio": ("Müzik", "Music"),
-    "f_image": ("Görseller", "Images"),
+    "f_image": ("Görseller", "Images"), "f_model": ("3D", "3D"),
     "sort_explorer": ("Klasördeki sıra (Gezgin)", "Folder order (Explorer)"),
     "sort_name": ("Ad (A → Z)", "Name (A → Z)"), "sort_name_desc": ("Ad (Z → A)", "Name (Z → A)"),
     "sort_date": ("Tarih (yeni → eski)", "Date (newest)"), "sort_date_asc": ("Tarih (eski → yeni)", "Date (oldest)"),
@@ -48,6 +49,7 @@ S = {
     "sort_type": ("Tür", "Type"),
     "empty_folder": ("Gösterilecek medya yok", "No media to show"),
     "now_playing": ("Şimdi açık", "Now playing"),
+    "now_viewing": ("Şimdi açık", "Now viewing"),
     "no_media_in_folder": ("Bu klasörde medya bulunamadı", "No media found in this folder"),
     # bilgi alanı
     "act_edit": ("Kes / Düzenle", "Cut / Edit"), "act_edit_image": ("Düzenle", "Edit"),
@@ -76,6 +78,65 @@ S = {
     "resumed_at": ("Kaldığın yerden devam: {time}", "Resumed at {time}"),
     "cannot_play": ("Bu dosya oynatılamadı", "This file could not be played"),
     "cannot_open_image": ("Görsel açılamadı", "Image could not be opened"),
+    # 3D model
+    "cannot_open_model": ("3D model açılamadı", "3D model could not be opened"),
+    "model_compressed": ("Bu model sıkıştırılmış (Draco / Meshopt), henüz açılamıyor",
+                         "This model is compressed (Draco / Meshopt) and can't be opened yet"),
+    "model_cad_missing": ("STEP / IGES desteği kurulu değil. gamma kurulumunu yeniden çalıştırıp "
+                          "'STEP / IGES desteği'ni seç.",
+                          "STEP / IGES support is not installed. Run the gamma installer again and select "
+                          "'STEP / IGES support'."),
+    "model_points": ("Bu dosyada yüzey yok, yalnızca nokta bulutu var", "This file has no surfaces, only a point cloud"),
+    "m_no_gl": ("3D görüntüleme için OpenGL 2.1 gerekiyor.\nEkran kartı sürücüsünü güncellemeyi dene.",
+                "3D viewing needs OpenGL 2.1.\nTry updating your graphics driver."),
+    "prev_model": ("Önceki model (←)", "Previous model (←)"), "next_model": ("Sonraki model (→)", "Next model (→)"),
+    "autorotate": ("Otomatik döndür (boşluk)", "Auto-rotate (space)"),
+    "stop_autorotate": ("Döndürmeyi durdur (boşluk)", "Stop rotating (space)"),
+    "reset_view": ("Görünümü sıfırla (0)", "Reset view (0)"),
+    "flip_model": ("Modeli çevir (R)", "Flip model (R)"),
+    "turn_model": ("Modeli yan çevir (Shift+R)", "Turn model sideways (Shift+R)"),
+    "wireframe": ("Tel kafes (W)", "Wireframe (W)"), "floor_grid": ("Zemin ızgarası (G)", "Floor grid (G)"),
+    "copy_view": ("Görüntüyü kopyala", "Copy view"), "save_view": ("Görüntüyü PNG olarak kaydet…", "Save view as PNG…"),
+    "save_view_transparent": ("Saydam PNG olarak kaydet…", "Save as transparent PNG…"),
+    "dimensions": ("Ölçüler (D)", "Dimensions (D)"),
+    "convert_model": ("Başka biçimde kaydet", "Save in another format"),
+    "converting": ("Dönüştürülüyor…", "Converting…"),
+    "saved_to": ("Kaydedildi: {p}", "Saved: {p}"),
+    "m_format": ("Biçim", "Format"), "m_triangles": ("Üçgen", "Triangles"), "m_vertices": ("Köşe", "Vertices"),
+    "m_parts": ("Parça", "Parts"), "m_size": ("Boyut (G × D × Y)", "Size (W × D × H)"), "m_textures": ("Doku", "Textures"),
+    "m_volume": ("Hacim", "Volume"), "m_area": ("Yüzey alanı", "Surface area"),
+    "m_closed": ("Kapalı yüzey (3B baskıya uygun)", "Closed surface (printable)"),
+    "m_closed_yes": ("Evet", "Yes"), "m_closed_no": ("Hayır (delik ya da hatalı kenar var)", "No (holes or non-manifold edges)"),
+    "m_open_note": ("yüzey kapalı değil, yaklaşık", "surface is not closed, approximate"),
+    "lay_model": ("3D görüntüleyici", "3D viewer"),
+    "p_model_grid": ("Zemin ızgarası", "Floor grid"),
+    "p_model_grid_desc": ("Modelin altında ölçek veren silik bir ızgara.", "A faint grid under the model for scale."),
+    "p_model_autorotate": ("Açılınca otomatik döndür", "Auto-rotate on open"),
+    "p_model_autorotate_desc": ("Model, sürükleyene kadar kendi etrafında yavaşça döner.",
+                                "The model slowly spins until you drag it."),
+    "p_model_dims": ("Ölçüleri göster", "Show dimensions"),
+    "p_model_dims_desc": ("Modelin çevresinde genişlik, derinlik ve yükseklik yazan bir kutu (D). "
+                          "STL / 3MF / OBJ milimetre, GLB / glTF metre kabul edilir.",
+                          "A box around the model with width, depth and height (D). "
+                          "STL / 3MF / OBJ are treated as millimetres, GLB / glTF as metres."),
+    "p_model_thumb_count": ("Küçük resmi çizilecek model sayısı", "Models to draw thumbnails for"),
+    "p_model_thumb_count_desc": ("Klasör listesinde yalnızca açık dosyaya en yakın bu kadar 3D modelin küçük resmi "
+                                 "kendiliğinden çizilir. Diğerleri açılınca çizilir.",
+                                 "Only this many 3D models nearest to the open file get a thumbnail automatically "
+                                 "in the folder list. Others get one when opened."),
+    "p_model_thumb_mb": ("Küçük resim için en büyük model", "Largest model to thumbnail"),
+    "p_model_thumb_mb_desc": ("Bundan büyük 3D dosyaların küçük resmi kendiliğinden çizilmez (büyük modeller "
+                              "bilgisayarı yorar). Açınca çizilir.",
+                              "Larger 3D files don't get a thumbnail automatically (big models are heavy). "
+                              "They get one when opened."),
+    "unlimited": ("Sınırsız", "Unlimited"),
+    "alpha_bg": ("Saydam alanın rengi", "Transparency background"),
+    "bg_checker": ("Dama", "Checkerboard"),
+    "bg_black": ("Siyah", "Black"),
+    "bg_white": ("Beyaz", "White"),
+    "bg_gray": ("Gri", "Gray"),
+    "bg_green": ("Yeşil", "Green"),
+    "bg_custom": ("Özel renk…", "Custom colour…"),
     "no_vlc": ("VLC motoru bulunamadı. Video ve müzik için VLC Media Player (64-bit) kurulu olmalı:\n"
                "https://www.videolan.org/vlc/  — Görseller yine de açılabilir.",
                "VLC engine not found. Install VLC Media Player (64-bit) for video and audio:\n"
@@ -246,8 +307,8 @@ S = {
     "thumb_cache": ("Küçük resim önbelleği", "Thumbnail cache"), "clear_cache": ("Temizle", "Clear"),
     "cache_cleared": ("Önbellek temizlendi.", "Cache cleared."),
     "shortcuts": ("Klavye kısayolları", "Keyboard shortcuts"),
-    "about_line": ("VLC motoru, ffmpeg ve Qt ile hazırlanmış evrensel medya oynatıcı.",
-                   "A universal media player built on VLC, ffmpeg and Qt."),
+    "about_line": ("VLC motoru, ffmpeg, Qt ve OpenGL ile hazırlanmış evrensel medya oynatıcı.",
+                   "A universal media player built on VLC, ffmpeg, Qt and OpenGL."),
     "theme_variants_desc": ("Üst çubuktaki güneş/ay düğmesi son seçtiğiniz koyu ve açık tema arasında geçer.",
                             "The sun/moon button switches between your last dark and light themes."),
     "accent_color": ("Tema rengi", "Accent color"),
@@ -295,6 +356,11 @@ S = {
     "p_thumb_size": ("Küçük resim boyutu", "Thumbnail size"),
     "p_sidebar_meta": ("Listede boyut ve tarih", "Size and date in list"),
     "p_show_infobar": ("Alt satırı göster", "Show bottom row"),
+    "p_infobar_labels": ("Alt satırdaki düğmelerde ad yazsın", "Show labels on bottom row buttons"),
+    "p_infobar_labels_desc": ("Kapalıyken yalnız simge görünür; adı fareyle üstüne gelince çıkar. "
+                              "Pencere darsa adlar yine gizlenir.",
+                              "When off, only icons are shown; the name appears on hover. "
+                              "Labels are hidden anyway when the window is narrow."),
     "p_show_infobar_desc": ("Oynatıcının altındaki dosya adı ve düğmeler.", "File name and buttons under the player."),
     "p_show_recent": ("Ana sayfada son açılanlar", "Recent files on home page"),
     "p_autohide": ("Kontrollerin kaybolma süresi", "Hide controls after"),
@@ -355,6 +421,9 @@ S = {
     "sc_seek60": ("1 dakika geri / ileri", "Back / forward 1 minute"),
     "sc_volume": ("Sesi aç / kıs (%200'e kadar)", "Volume up / down (up to 200%)"),
     "sc_mute": ("Sessiz", "Mute"), "sc_fullscreen": ("Tam ekran", "Full screen"), "sc_theater": ("Sinema modu", "Theater mode"),
+    "m_mode": ("Renk modu", "Mode"), "m_frames": ("Kare sayısı", "Frames"), "images_filter": ("Görseller", "Images"),
+    "k_dblclick":("Çift tık", "Double-click"), "k_paused": ("duraklatılmışken", "while paused"),
+    "k_wheel": ("Tekerlek", "Wheel"), "k_image": ("resim", "image"), "k_drag": ("Sürükle", "Drag"),
     "sc_pip": ("Mini oynatıcı (PiP)", "Miniplayer (PiP)"), "sc_cc": ("Altyazıyı aç / kapat", "Toggle subtitles"),
     "sc_subdelay": ("Altyazıyı 50 ms öne / geriye al", "Subtitle delay −/+ 50 ms"),
     "sc_audiodelay": ("Sesi 50 ms öne / geriye al", "Audio delay −/+ 50 ms"),
@@ -367,6 +436,9 @@ S = {
     "sc_open": ("Dosya / klasör aç", "Open file / folder"), "sc_pin": ("Her zaman üstte", "Always on top"),
     "sc_theme": ("Karanlık / aydınlık tema", "Dark / light theme"), "sc_zoom": ("Videoyu yakınlaştır", "Zoom video"),
     "sc_image": ("Görsel: yakınlaştır, uzaklaştır, sığdır, %100, döndür", "Image: zoom in/out, fit, 100%, rotate"),
+    "sc_model": ("3D: sol sürükle döndür, sağ sürükle kaydır, tekerlek yakınlaştır, 0 sıfırla, R çevir, "
+                 "W tel kafes, G ızgara, D ölçüler",
+                 "3D: left-drag rotate, right-drag pan, wheel zoom, 0 reset, R flip, W wireframe, G grid, D dimensions"),
     "sc_delete": ("Dosyayı geri dönüşüm kutusuna taşı", "Move file to Recycle Bin"),
     "sc_escape": ("Tam ekrandan / mini oynatıcıdan çık", "Exit full screen / miniplayer"),
     "sc_help": ("Bu listeyi göster", "Show this list"),

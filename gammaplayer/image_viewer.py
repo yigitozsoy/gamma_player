@@ -44,6 +44,7 @@ class ImageViewer(QWidget):
         self._drag = None
         self._checker = None
         self.bg_override = None   # video düzenleyicide siyah arka plan için
+        self.alpha_bg = "checker"  # saydam görsellerin altı: "checker" (dama) ya da "#rrggbb"
         self.allow_zoom = True
         # Kırpma
         self.crop_mode = False
@@ -70,6 +71,13 @@ class ImageViewer(QWidget):
             self.anim_timer.start(self._durations[0] if self._durations else 100)
         self.update()
         self.zoom_changed.emit(self.zoom_percent())
+
+    def has_alpha(self):
+        return self._has_alpha
+
+    def set_alpha_bg(self, value):
+        self.alpha_bg = value or "checker"
+        self.update()
 
     def set_image(self, img: QImage, keep_view=False):
         self.set_frames([img] if img is not None else [], keep_view=keep_view)
@@ -381,9 +389,12 @@ class ImageViewer(QWidget):
         p.rotate(self._rot)
         target = QRectF(-w * s / 2, -h * s / 2, w * s, h * s)
         if self._has_alpha:
-            if self._checker is None:
-                self._checker = _checker()
-            p.fillRect(target, QBrush(self._checker))
+            if self.alpha_bg and self.alpha_bg != "checker":
+                p.fillRect(target, QColor(self.alpha_bg))
+            else:
+                if self._checker is None:
+                    self._checker = _checker()
+                p.fillRect(target, QBrush(self._checker))
         smooth = s < 1.999
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, smooth)
         p.drawPixmap(target, pm, QRectF(pm.rect()))

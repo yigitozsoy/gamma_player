@@ -43,6 +43,13 @@ BEHAVIOR_DEFAULTS = {
     "confirm_delete": True,
     "osd_messages": True,             # kısa bildirimler
     "show_recent": True,              # ana sayfada son açılanlar
+    "model_grid": True,               # 3D: zemin ızgarası
+    "model_autorotate": False,        # 3D: açılınca kendi etrafında dön
+    "model_dims": False,              # 3D: ölçü kutusu (genişlik / derinlik / yükseklik)
+    "infobar_labels": False,          # alttaki düğmelerde ad yazsın mı (kapalı: yalnız simge)
+    "image_alpha_bg": "checker",     # saydam görsellerin altı: dama ya da "#rrggbb"
+    "model_thumb_count": 20,         # 3D küçük resim: açık dosyaya en yakın kaç model (0 = sınırsız)
+    "model_thumb_mb": 20,             # 3D küçük resim: bu boyuttan (MB) büyük dosyalar otomatik çizilmez (0 = sınırsız)
 }
 
 PERSONAL_KEYS = [g[0] for g in GROUPS.values()] + list(BEHAVIOR_DEFAULTS.keys())

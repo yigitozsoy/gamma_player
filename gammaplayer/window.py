@@ -5,7 +5,7 @@ import time
 from ctypes import wintypes
 
 from PyQt6.QtCore import Qt, QTimer, QPoint, QRect, QEvent, QFileSystemWatcher, QObject
-from PyQt6.QtGui import QGuiApplication, QCursor, QImage
+from PyQt6.QtGui import QGuiApplication, QCursor, QImage, QColor
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QFileDialog, QMessageBox, QMenu, QApplication, QLabel, QInputDialog)
 
 from . import thumbs
@@ -46,7 +46,7 @@ class MONITORINFO(ctypes.Structure):
                 ("dwFlags", wintypes.DWORD)]
 SWP_FLAGS = 0x0002 | 0x0001 | 0x0010  # NOMOVE | NOSIZE | NOACTIVATE
 
-PAGE_HOME, PAGE_VIDEO, PAGE_AUDIO, PAGE_IMAGE = 0, 1, 2, 3
+PAGE_HOME, PAGE_VIDEO, PAGE_AUDIO, PAGE_IMAGE, PAGE_MODEL = 0, 1, 2, 3, 4
 SPEEDS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0]
 ASPECTS = [None, "16:9", "4:3", "1:1", "16:10", "21:9", "2.35:1", "9:16"]
 
@@ -325,12 +325,20 @@ class MainWindow(QMainWindow):
         self.audio_view = AudioView()
         self.stack.addWidget(self.audio_view)
         self.viewer = ImageViewer()
+        self.viewer.set_alpha_bg(lp.get("image_alpha_bg"))
         self.viewer.zoom_changed.connect(lambda z: self.overlay.set_zoom(z))
         self.viewer.mouse_moved.connect(self._on_image_mouse)
         self.viewer.double_clicked.connect(
             lambda: self._edit_panel is None and lp.get("dblclick_fullscreen") and self.toggle_fullscreen())
         self.viewer.context_requested.connect(self._image_context)
         self.stack.addWidget(self.viewer)
+        # 3D görüntüleyici: OpenGL penceresi ilk modelde oluşturulur (açılışı yavaşlatmasın)
+        self.model_host = QWidget()
+        self._model_lay = QVBoxLayout(self.model_host)
+        self._model_lay.setContentsMargins(0, 0, 0, 0)
+        self.viewer3d = None
+        self._model_cache = {}
+        self.stack.addWidget(self.model_host)
         self.player_area.installEventFilter(self)
         self.toast = Toast(self.player_area)
         self.main_lay.addWidget(self.player_area, 1)
@@ -375,10 +383,10 @@ class MainWindow(QMainWindow):
         o.fullscreen_clicked.connect(self.toggle_fullscreen)
         o.autoplay_toggled.connect(lambda v: (prefs.set("autoplay", v), self.osd(t("autoplay") + ": " + (t("on") if v else t("off")))))
         o.slideshow_clicked.connect(self.toggle_slideshow)
-        o.zoom_in_clicked.connect(lambda: self.viewer.zoom_by(1.25))
-        o.zoom_out_clicked.connect(lambda: self.viewer.zoom_by(0.8))
+        o.zoom_in_clicked.connect(lambda: self._active_viewer().zoom_by(1.25))
+        o.zoom_out_clicked.connect(lambda: self._active_viewer().zoom_by(0.8))
         o.fit_clicked.connect(self._fit_toggle)
-        o.rotate_clicked.connect(lambda: self.viewer.rotate_view(90))
+        o.rotate_clicked.connect(self._rotate_clicked)
         o.edit_clicked.connect(self.edit_current)
         o.video_clicked.connect(self._on_video_click)
         o.video_double_clicked.connect(self._on_video_double_click)
@@ -459,7 +467,11 @@ class MainWindow(QMainWindow):
     def show_page(self, page):
         self.stack.setCurrentIndex(page)
         mode = {PAGE_HOME: PlayerOverlay.MODE_NONE, PAGE_VIDEO: PlayerOverlay.MODE_VIDEO,
-                PAGE_AUDIO: PlayerOverlay.MODE_AUDIO, PAGE_IMAGE: PlayerOverlay.MODE_IMAGE}[page]
+                PAGE_AUDIO: PlayerOverlay.MODE_AUDIO, PAGE_IMAGE: PlayerOverlay.MODE_IMAGE,
+                PAGE_MODEL: PlayerOverlay.MODE_IMAGE}[page]
+        self.overlay.set_model_mode(page == PAGE_MODEL)
+        if page != PAGE_MODEL and self.viewer3d is not None:
+            self.viewer3d.set_autorotate(False)
         self.player_area.setStyleSheet("#PlayerArea { background: %s; }" %
                                        ("#000000" if page in (PAGE_VIDEO, PAGE_AUDIO) else "transparent"))
         if self.overlay.mode != mode:
@@ -510,6 +522,7 @@ class MainWindow(QMainWindow):
             self.titlebar.set_maximized(self.isMaximized())
             if not self.isFullScreen():
                 QTimer.singleShot(0, self._apply_native_frame)
+            QTimer.singleShot(0, self._apply_corners)
             QTimer.singleShot(0, self.sync_overlay)
             if self._pinned:
                 QTimer.singleShot(50, lambda: self._apply_topmost(True))
@@ -520,6 +533,7 @@ class MainWindow(QMainWindow):
     def showEvent(self, e):
         super().showEvent(e)
         self._apply_native_frame()
+        self._apply_corners()
         QTimer.singleShot(0, self.sync_overlay)
         QTimer.singleShot(0, self.setFocus)
 
@@ -541,6 +555,15 @@ class MainWindow(QMainWindow):
             if want != style:
                 user32.SetWindowLongW(hwnd, GWL_STYLE, want)
                 user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0004 | 0x0010 | 0x0020)
+        except Exception:
+            pass
+
+    def _apply_corners(self):
+        """Windows 11'de pencere köşelerini Tercihler penceresi gibi yuvarlak yapar (tam ekranda köşeli).
+        Windows 10'da bu öznitelik yok, çağrı sessizce başarısız olur."""
+        try:
+            pref = ctypes.c_int(1 if self.isFullScreen() else 2)   # DWMWCP_DONOTROUND / DWMWCP_ROUND
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(int(self.winId()), 33, ctypes.byref(pref), ctypes.sizeof(pref))
         except Exception:
             pass
 
@@ -639,7 +662,7 @@ class MainWindow(QMainWindow):
         if folder:
             from .library import explorer_sort_for
             thumbs.run_async(explorer_sort_for, folder, on_done=lambda m, f=folder: self._on_explorer_sort(f, m))
-        self.thumbs.request(self.lib.all_items, self.lib.current)
+        self._request_thumbs(self.lib.current)
 
     def _on_explorer_sort(self, folder, mode):
         if not mode or folder != self.lib.folder or mode == self.lib.explorer_sort:
@@ -649,6 +672,13 @@ class MainWindow(QMainWindow):
             self.lib._rebuild()
             self.sidebar.set_items(self.lib.items, self.current)
             self._update_counter()
+            self._request_thumbs(self.current or self.lib.current)
+
+    def _request_thumbs(self, first):
+        """Küçük resimleri listede görünen sırayla iste (filtre dışındakiler sona)."""
+        shown = list(self.lib.items)
+        seen = {it.path for it in shown}
+        self.thumbs.request(shown + [it for it in self.lib.all_items if it.path not in seen], first)
 
     def _refresh_sidebar(self):
         self.sidebar.set_counts(self.lib.counts())
@@ -659,7 +689,7 @@ class MainWindow(QMainWindow):
     def _folder_changed(self):
         if self.lib.refresh():
             self._refresh_sidebar()
-            self.thumbs.request(self.lib.all_items, self.current)
+            self._request_thumbs(self.current)
 
     def _on_filter(self, f):
         prefs.set("filter", f)
@@ -670,6 +700,7 @@ class MainWindow(QMainWindow):
         self.lib.set_sort(s)
         self.sidebar.set_items(self.lib.items, self.current)
         self._update_counter()
+        self._request_thumbs(self.current)   # yeni sıraya göre en yakın modeller değişir
 
     def _on_search(self, text):
         self.lib.set_query(text)
@@ -754,6 +785,15 @@ class MainWindow(QMainWindow):
             self.overlay.set_playing(True)
             self._apply_sync_for(item)
             self.overlay.set_cc(False)
+            if item.is_video:   # görüntüsü olmayan video uzantılı dosya (ör. yalnızca ses içeren mp4)?
+                QTimer.singleShot(1200, lambda p=item.path: self._check_audio_only(p))
+        elif item.is_model:
+            self._stop_slideshow()
+            if self.engine:
+                self.engine.stop()
+            self.overlay.set_playing(False)
+            self.show_page(PAGE_MODEL)
+            self._load_model(item)
         else:
             if self.engine:
                 self.engine.stop()
@@ -790,13 +830,161 @@ class MainWindow(QMainWindow):
         if self.current is None:
             return
         seq = self.lib.items if self.lib.index_of(self.current) >= 0 else self.lib.all_items
-        if self.current.is_image:
-            imgs = [i for i in seq if i.is_image]
+        if self.current.is_image or self.current.is_model:
+            kind = self.current.kind
+            imgs = [i for i in seq if i.kind == kind]
             try:
                 n = next(k for k, i in enumerate(imgs) if i is self.current) + 1
             except StopIteration:
                 n = 1
             self.overlay.set_counter(f"{n} / {len(imgs)}")
+
+    # ---------------------------------------------------------------- 3D model
+    def _ensure_viewer3d(self):
+        if self.viewer3d is None:
+            from .model_viewer import ModelViewer
+            v = ModelViewer(self.model_host)
+            v.zoom_changed.connect(lambda z: self.overlay.set_zoom(z))
+            v.mouse_moved.connect(self._on_image_mouse)
+            v.double_clicked.connect(lambda: lp.get("dblclick_fullscreen") and self.toggle_fullscreen())
+            v.context_requested.connect(self._model_context)
+            v.autorotate_changed.connect(self.overlay.set_slideshow)
+            self._model_lay.addWidget(v)
+            self.viewer3d = v
+        self.viewer3d.set_grid(lp.get("model_grid"))
+        self.viewer3d.set_dims(lp.get("model_dims"))
+        return self.viewer3d
+
+    def _active_viewer(self):
+        if self.current is not None and self.current.is_model and self.viewer3d is not None:
+            return self.viewer3d
+        return self.viewer
+
+    def _load_model(self, item):
+        v = self._ensure_viewer3d()
+        v.set_autorotate(False)
+        cached = self._model_cache.get(item.path)
+        if cached is not None:
+            self._show_model(item, cached)
+            return
+        v.clear()
+        self.toast.show_text(t("loading"))
+        from .model_io import load_model
+
+        def done(model, path=item.path):
+            self._model_cache.pop(path, None)
+            self._model_cache[path] = model
+            # Bellekte en fazla 3 model / ~6 milyon üçgen tut
+            while len(self._model_cache) > 3 or (
+                    sum(m.triangles for m in self._model_cache.values()) > 6_000_000 and len(self._model_cache) > 1):
+                self._model_cache.pop(next(iter(self._model_cache)))
+            if self.current and self.current.path == path:
+                self.toast.hide()
+                self._show_model(self.current, model)
+                if self.thumbs._skip_model(self.current):   # listede küçük resmi yoktu: şimdi çiz
+                    self.thumbs.store_model_thumb(self.current, model)
+
+        def fail(msg, path=item.path):
+            if self.current and self.current.path == path:
+                key = {"compressed": "model_compressed", "ply_points": "model_points",
+                       "cad_missing": "model_cad_missing"}.get(str(msg), "cannot_open_model")
+                self.osd(t(key))
+        thumbs.run_async(load_model, item.path, on_done=done, on_fail=fail)
+
+    def _show_model(self, item, model):
+        v = self.viewer3d
+        v.set_model(model)
+        if lp.get("model_autorotate"):
+            v.set_autorotate(True)
+        self.overlay.set_zoom(v.zoom_pct())
+
+    def _rotate_clicked(self):
+        if self.current is not None and self.current.is_model and self.viewer3d is not None:
+            self.viewer3d.rotate_model("x", -90)
+        else:
+            self.viewer.rotate_view(90)
+
+    def _save_model_view(self, transparent=False):
+        """Görünümü PNG kaydet; transparent=True: arka plansız, 2 kat çözünürlük, kenarları kırpılmış."""
+        if self.viewer3d is None or self.current is None:
+            return
+        d = prefs.get("snapshot_dir") or os.path.join(os.path.expanduser("~"), "Pictures", "gamma")
+        os.makedirs(d, exist_ok=True)
+        base = os.path.join(d, self.current.title)
+        path, n = base + ".png", 1
+        while os.path.exists(path):
+            n += 1
+            path = f"{base} ({n}).png"
+        title = t("save_view_transparent") if transparent else t("save_view")
+        path, _ = QFileDialog.getSaveFileName(self, title.rstrip("…"), path, "PNG (*.png)")
+        if path:
+            self.viewer3d.image(transparent=transparent).save(path, "PNG")
+            self.osd(t("saved_to", p=os.path.basename(path)))
+
+    def _add_model_convert_menu(self, menu, item):
+        """Sağ tık: 3D modeli STL / OBJ / 3MF / GLB / PLY olarak kaydet (orijinal korunur)."""
+        from .model_io import EXPORT_FORMATS
+        sm = menu.addMenu(t("convert_model"))
+        for label, ext in EXPORT_FORMATS:
+            if item.ext == ext:
+                continue
+            sm.addAction(t("convert_to", fmt=label), lambda e=ext: self.convert_model(item, e))
+
+    def convert_model(self, item, ext):
+        target = os.path.splitext(item.path)[0] + ext
+        if os.path.exists(target):
+            r = QMessageBox.question(self, t("convert_title"), t("file_exists_overwrite") + "\n" + os.path.basename(target))
+            if r != QMessageBox.StandardButton.Yes:
+                return
+        src = item.path
+        cached = self._model_cache.get(src)
+        self.osd(t("converting"))
+
+        def work():
+            from .model_io import load_model, export_model
+            return export_model(cached if cached is not None else load_model(src), target)
+
+        def done(p):
+            self.lib.refresh()
+            self._refresh_sidebar()
+            self._request_thumbs(self.current)
+            self.osd(t("converted", name=os.path.basename(p)))
+        thumbs.run_async(work, on_done=done,
+                         on_fail=lambda m: QMessageBox.warning(self, t("convert_title"), t("save_failed") + "\n" + str(m)))
+
+    def _model_context(self, gpos):
+        if not self.current or not self.current.is_model or self.viewer3d is None:
+            return
+        v = self.viewer3d
+        m = QMenu(self)
+        a = m.addAction(t("stop_autorotate") if v.autorotate else t("autorotate"))
+        a.triggered.connect(lambda: v.set_autorotate(not v.autorotate))
+        m.addAction(t("reset_view"), v.reset_view)
+        m.addAction(t("flip_model"), lambda: v.rotate_model("x", -90))
+        m.addAction(t("turn_model"), lambda: v.rotate_model("z", 90))
+        m.addSeparator()
+        wf = m.addAction(t("wireframe"))
+        wf.setCheckable(True)
+        wf.setChecked(v.wireframe)
+        wf.triggered.connect(v.set_wireframe)
+        gr = m.addAction(t("floor_grid"))
+        gr.setCheckable(True)
+        gr.setChecked(v.show_grid)
+        gr.triggered.connect(lambda c: (prefs.set("model_grid", bool(c)), v.set_grid(c)))
+        dm = m.addAction(t("dimensions"))
+        dm.setCheckable(True)
+        dm.setChecked(v.show_dims)
+        dm.triggered.connect(lambda c: (prefs.set("model_dims", bool(c)), v.set_dims(c)))
+        m.addSeparator()
+        m.addAction(t("copy_view"), lambda: (QApplication.clipboard().setImage(v.image()), self.osd(t("copied"))))
+        m.addAction(t("save_view"), self._save_model_view)
+        m.addAction(t("save_view_transparent"), lambda: self._save_model_view(transparent=True))
+        self._add_model_convert_menu(m, self.current)
+        m.addSeparator()
+        m.addAction(t("act_info"), self.show_info)
+        m.addAction(t("act_reveal"), lambda: self.reveal(self.current))
+        m.addAction(t("copy_path"), lambda: QApplication.clipboard().setText(self.current.path))
+        m.exec(gpos)
 
     # ---------------------------------------------------------------- resim
     def _load_image(self, item):
@@ -860,12 +1048,19 @@ class MainWindow(QMainWindow):
             self.sync_overlay()
 
     def _fit_toggle(self):
+        if self.current is not None and self.current.is_model and self.viewer3d is not None:
+            self.viewer3d.reset_view()
+            return
         if self.viewer._fit:
             self.viewer.actual_size()
         else:
             self.viewer.fit()
 
     def toggle_slideshow(self):
+        if self.current is not None and self.current.is_model:
+            if self.viewer3d is not None:
+                self.viewer3d.set_autorotate(not self.viewer3d.autorotate)
+            return
         if self._slideshow:
             self._stop_slideshow()
             self.osd(t("slideshow_stopped"))
@@ -984,15 +1179,28 @@ class MainWindow(QMainWindow):
     def _on_vout(self, n):
         # Video uzantılı ama görüntüsü olmayan dosyalar (ör. sadece ses içeren mp4)
         if self.current and self.current.is_video and n == 0:
-            QTimer.singleShot(1200, self._check_audio_only)
+            QTimer.singleShot(1200, lambda p=self.current.path: self._check_audio_only(p))
         elif self.current and self.current.is_video and n > 0 and self.stack.currentIndex() == PAGE_AUDIO:
             self.show_page(PAGE_VIDEO)
 
-    def _check_audio_only(self):
-        if self.engine and self.current and self.current.is_video and self.engine.is_playing() \
-                and not self.engine.has_video():
-            self.audio_view.set_info(self.current.title)
-            self.show_page(PAGE_AUDIO)
+    def _check_audio_only(self, path=None, tries=0):
+        """Video uzantılı dosyada gerçekten görüntü yoksa müzik görünümüne geç.
+        Yalnızca "görüntü penceresi açılmadı"ya bakmak yetmiyor: ağır videolarda ya da 3D / görselden dönüşte
+        görüntü geç gelir. Bu yüzden dosyadaki görüntü kanalı da sorulur; bilinmiyorsa biraz sonra tekrar bakılır."""
+        cur = self.current
+        if not (self.engine and cur and cur.is_video) or (path and cur.path != path):
+            return
+        if self.engine.has_video():
+            return
+        n = self.engine.video_track_count()
+        if n > 0:
+            return                       # görüntü kanalı var: yalnızca geç açılıyor
+        if n < 0 or not self.engine.is_playing():
+            if tries < 4:                # henüz bilinmiyor / oynamaya başlamadı
+                QTimer.singleShot(800, lambda p=cur.path, k=tries + 1: self._check_audio_only(p, k))
+            return
+        self.audio_view.set_info(cur.title)
+        self.show_page(PAGE_AUDIO)
 
     def _on_length(self, ms):
         if self.current and ms > 0:
@@ -1046,9 +1254,9 @@ class MainWindow(QMainWindow):
     def play_next(self):
         if self.current is None:
             return
-        kinds = ("image",) if self.current.is_image else None
+        kinds = (self.current.kind,) if (self.current.is_image or self.current.is_model) else None
         nxt = self.lib.neighbor(1, kinds=kinds, wrap=prefs.get("loop", "off") == "all",
-                                shuffle=prefs.get("shuffle", False) and not self.current.is_image)
+                                shuffle=prefs.get("shuffle", False) and kinds is None)
         if nxt:
             if self._edit_panel is not None and not self._close_image_editor():
                 return
@@ -1060,7 +1268,7 @@ class MainWindow(QMainWindow):
         if self.current.is_playable and self.engine and self.engine.get_time() > 4000:
             self.seek_to(0)
             return
-        kinds = ("image",) if self.current.is_image else None
+        kinds = (self.current.kind,) if (self.current.is_image or self.current.is_model) else None
         prv = self.lib.neighbor(-1, kinds=kinds, wrap=prefs.get("loop", "off") == "all")
         if prv:
             if self._edit_panel is not None and not self._close_image_editor():
@@ -1438,6 +1646,8 @@ class MainWindow(QMainWindow):
         if self._edit_panel is not None and not self._close_image_editor():
             return
         self._stop_slideshow()
+        if self.viewer3d is not None:
+            self.viewer3d.set_autorotate(False)
         self.current = None
         self.lib.current = None
         self.sidebar.set_current(None)
@@ -1582,6 +1792,40 @@ class MainWindow(QMainWindow):
         m.addAction(t("exit_fullscreen_tip") if self.isFullScreen() else t("fullscreen_tip"), self.toggle_fullscreen)
         m.exec(gpos)
 
+    ALPHA_BGS = (("bg_checker", "checker"), ("bg_black", "#000000"), ("bg_white", "#ffffff"),
+                 ("bg_gray", "#808080"), ("bg_green", "#00b140"))
+
+    def _add_alpha_bg_menu(self, menu):
+        """Saydam görselin altında ne görünsün: dama, siyah, beyaz, gri, yeşil ya da özel renk (hatırlanır).
+        Yalnızca görünümü değiştirir; dosyaya ve kopyalanan resme dokunmaz."""
+        from PyQt6.QtGui import QActionGroup
+        sub = menu.addMenu(t("alpha_bg"))
+        grp = QActionGroup(sub)
+        cur = self.viewer.alpha_bg
+        known = False
+
+        def apply(v):
+            prefs.set("image_alpha_bg", v)
+            self.viewer.set_alpha_bg(v)
+        for key, val in self.ALPHA_BGS:
+            a = sub.addAction(t(key), lambda v=val: apply(v))
+            a.setCheckable(True)
+            a.setChecked(cur.lower() == val)
+            known = known or cur.lower() == val
+            grp.addAction(a)
+        sub.addSeparator()
+
+        def custom():
+            from PyQt6.QtWidgets import QColorDialog
+            start = QColor(cur) if cur != "checker" else QColor("#00b140")
+            c = QColorDialog.getColor(start, self, t("alpha_bg"))
+            if c.isValid():
+                apply(c.name())
+        a = sub.addAction(t("bg_custom"), custom)
+        a.setCheckable(True)
+        a.setChecked(not known)
+        grp.addAction(a)
+
     def _image_context(self, gpos):
         if not self.current or not self.current.is_image:
             return
@@ -1591,6 +1835,8 @@ class MainWindow(QMainWindow):
         m.addAction(t("slideshow"), self.toggle_slideshow)
         m.addAction(t("rotate"), lambda: self.viewer.rotate_view(90))
         m.addAction(t("copy_image"), lambda: QApplication.clipboard().setImage(self.viewer.image()))
+        if self.viewer.has_alpha():
+            self._add_alpha_bg_menu(m)
         m.addSeparator()
         m.addAction(t("act_info"), self.show_info)
         m.addAction(t("act_reveal"), lambda: self.reveal(self.current))
@@ -1603,9 +1849,12 @@ class MainWindow(QMainWindow):
     def _item_context(self, item, gpos):
         m = QMenu(self)
         m.addAction(t("open"), lambda: self.play_item(item))
-        m.addAction(t("act_edit_image") if item.is_image else t("act_edit") + "…", lambda: self.edit_item(item))
+        if not item.is_model:
+            m.addAction(t("act_edit_image") if item.is_image else t("act_edit") + "…", lambda: self.edit_item(item))
         if item.is_image:
             self._add_convert_menu(m, item)
+        elif item.is_model:
+            self._add_model_convert_menu(m, item)
         m.addSeparator()
         m.addAction(t("act_info"), lambda: self.show_info(item))
         m.addAction(t("act_reveal"), lambda: self.reveal(item))
@@ -1629,7 +1878,10 @@ class MainWindow(QMainWindow):
         elif key == "delete" and self.current is not None:
             self.trash_item(self.current)
         elif key == "more":
-            self._video_context(QCursor.pos())
+            if self.current is not None and self.current.is_model:
+                self._model_context(QCursor.pos())
+            else:
+                self._video_context(QCursor.pos())
 
     # ================================================================== dosya işlemleri
     def reveal(self, item):
@@ -1660,7 +1912,7 @@ class MainWindow(QMainWindow):
         self.lib.refresh()
         new_item = Library.find(dst, self.lib.all_items)
         self._refresh_sidebar()
-        self.thumbs.request(self.lib.all_items, new_item)
+        self._request_thumbs(new_item)
         if item is self.current and new_item:
             self.load_item(new_item, start_ms=pos if playing else None)
 
@@ -1681,6 +1933,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, t("move_to_trash"), t("trash_failed"))
             return
         self._image_cache.pop(item.path, None)
+        self._model_cache.pop(item.path, None)
         self.lib.remove(item)
         self._refresh_sidebar()
         if is_cur:
@@ -1716,7 +1969,7 @@ class MainWindow(QMainWindow):
         self.edit_item(self.current)
 
     def edit_item(self, item):
-        if item is None:
+        if item is None or item.is_model:
             return
         if item.is_image:
             if item is not self.current:
@@ -1752,7 +2005,7 @@ class MainWindow(QMainWindow):
             except OSError:
                 pass
         self._refresh_sidebar()
-        self.thumbs.request(self.lib.all_items, self.current)
+        self._request_thumbs(self.current)
         self.osd(t("export_done"))
         released = getattr(self, "_released", None)
         if released and it is not None and os.path.normcase(released) == os.path.normcase(path):
@@ -1790,7 +2043,7 @@ class MainWindow(QMainWindow):
         def done(p):
             self.lib.refresh()
             self._refresh_sidebar()
-            self.thumbs.request(self.lib.all_items, self.current)
+            self._request_thumbs(self.current)
             self.osd(t("converted", name=os.path.basename(p)))
         thumbs.run_async(work, on_done=done, on_fail=lambda m: QMessageBox.warning(self, t("convert_title"), t("save_failed") + "\n" + m))
 
@@ -1800,7 +2053,7 @@ class MainWindow(QMainWindow):
         def done(p):
             self.lib.refresh()
             self._refresh_sidebar()
-            self.thumbs.request(self.lib.all_items, self.current)
+            self._request_thumbs(self.current)
             self.osd(t("converted", name=os.path.basename(p)))
         ConvertDialog(item, self, on_done=done).exec()
 

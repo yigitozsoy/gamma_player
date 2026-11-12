@@ -5,3 +5,4 @@ pillow-heif>=1.8.0
 imagecodecs>=2026.1.1
 imageio-ffmpeg>=0.8.0
 numpy>=2.0
+gmsh>=4.11          # isteğe bağlı: STEP / IGES desteği (kurulumda ayrı bileşen)

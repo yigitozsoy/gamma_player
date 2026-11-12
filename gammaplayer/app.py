@@ -58,10 +58,15 @@ def restart(win=None):
 
 
 def main():
-    try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("gamma.media.player")
-    except Exception:
-        pass
+    # Kaynaktan çalışırken (python.exe) görev çubuğunda Python simgesi çıkmasın diye ayrı kimlik veriyoruz.
+    # Kurulu exe'de VERMİYORUZ: açık kimliği olan pencerenin simgesini görev çubuğu o kimliği taşıyan bir
+    # kısayoldan arıyor, bulamayınca düz pencere simgesi gösteriyordu. Kimlik verilmezse Windows gamma.exe'nin
+    # kendi simgesini kullanır ve Başlat / masaüstü kısayollarıyla aynı düğmede toplar (sabitleme de düzgün).
+    if not getattr(sys, "frozen", False):
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("gamma.media.player")
+        except Exception:
+            pass
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontCreateNativeWidgetSiblings, True)
     app = QApplication(sys.argv)

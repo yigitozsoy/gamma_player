@@ -60,6 +60,25 @@ if (-not $NoVlc) {
 
 Copy-Item LICENSE (Join-Path $App "LICENSE.txt") -Force
 
+Step "STEP / IGES motoru (isteğe bağlı bileşen: build\dist\gamma\step)"
+# gmsh = OpenCASCADE CAD çekirdeği, tek DLL. Kurulumda "STEP / IGES desteği" seçilirse kurulur.
+$GmshInfo = & $Python -c "import gmsh; print(gmsh.__file__); print(gmsh.libpath)"
+if ($LASTEXITCODE -ne 0 -or -not $GmshInfo) {
+    Write-Warning "gmsh bulunamadı; STEP desteği pakete girmedi. Kurmak için:  $Python -m pip install gmsh"
+} else {
+    $StepDir = Join-Path $App "step"
+    New-Item -ItemType Directory -Force $StepDir | Out-Null
+    Copy-Item $GmshInfo[0], $GmshInfo[1] $StepDir -Force
+    Write-Host ("  " + ((Get-ChildItem $StepDir | Measure-Object Length -Sum).Sum / 1MB).ToString("0") + " MB")
+}
+
+Step "Gezgin 3D küçük resim sağlayıcısı (GammaThumbs.dll)"
+# .NET Framework 4 her Windows 10/11'de var; ayrıca SDK gerekmez
+$Csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+$ThumbOut = "/out:" + (Join-Path $App "GammaThumbs.dll")
+& $Csc /nologo /target:library /optimize+ /r:System.Drawing.dll $ThumbOut packaging\thumbnail\GammaThumbs.cs
+if ($LASTEXITCODE -ne 0) { throw "GammaThumbs.dll derlenemedi" }
+
 Step "Taşınabilir zip"
 $Out = Join-Path $Root "build\installer"
 New-Item -ItemType Directory -Force $Out | Out-Null

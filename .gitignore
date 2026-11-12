@@ -12,6 +12,7 @@ dist/
 packaging/version_info.txt
 packaging/version.iss
 packaging/extensions_registry.iss
+packaging/extensions_code.iss
 *.spec.bak
 
 # Editör / sistem

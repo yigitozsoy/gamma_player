@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gamma-player"
-description = "YouTube görünümlü, VLC motorlu evrensel medya oynatıcı (video, müzik, görsel)"
+description = "YouTube görünümlü, VLC motorlu evrensel medya oynatıcı (video, müzik, görsel, 3D model)"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
@@ -34,6 +34,7 @@ gamma = "gammaplayer.app:main"
 
 [project.optional-dependencies]
 build = ["pyinstaller>=6.0"]
+step = ["gmsh>=4.11"]   # STEP / IGES (CAD) dosyaları
 
 [tool.setuptools]
 packages = ["gammaplayer"]

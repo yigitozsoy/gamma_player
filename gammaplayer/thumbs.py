@@ -10,11 +10,11 @@ import subprocess
 import threading
 from collections import OrderedDict
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, QThread, QMutex, QWaitCondition, Qt
+from PyQt6.QtCore import QCoreApplication, QObject, QRunnable, QThreadPool, pyqtSignal, QThread, QMutex, QWaitCondition, Qt
 from PyQt6.QtGui import QImage
 
 from .config import THUMB_DIR
-from .formats import KIND_AUDIO, KIND_IMAGE, KIND_VIDEO
+from .formats import KIND_AUDIO, KIND_IMAGE, KIND_MODEL, KIND_VIDEO
 from . import image_io
 
 def _find_ffmpeg():
@@ -156,8 +156,11 @@ def waveform(path: str, w: int = 1600, h: int = 120, color: str = "#ff4e45") -> 
     return img
 
 
-def _cache_key(path: str, size: int, mtime: float) -> str:
+def _cache_key(path: str, size: int, mtime: float, kind: str = "") -> str:
     raw = f"{os.path.normcase(path)}|{size}|{int(mtime)}|v4"
+    if kind == KIND_MODEL:
+        # 3D anahtarı ayrı: eski sürümlerin bu dosyayı başka tür sanıp yazdığı "resim yok" kaydı kullanılmasın
+        raw += "|model"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
@@ -165,8 +168,17 @@ class _ThumbSignals(QObject):
     ready = pyqtSignal(str, QImage, dict, int)   # path, resim, meta, nesil
 
 
+# 3D küçük resimleri tek tek çizilir: büyük modeller aynı anda yüklenince bellek ve işlemci tıkanıyor
+_MODEL_LOCK = threading.Lock()
+
+
+def _cache_paths(path, size, mtime, kind=""):
+    key = _cache_key(path, size, mtime, kind)
+    return os.path.join(THUMB_DIR, key + ".jpg"), os.path.join(THUMB_DIR, key + ".json")
+
+
 class _ThumbJob(QRunnable):
-    def __init__(self, svc, item, generation):
+    def __init__(self, svc, item, generation, skip_model=False):
         super().__init__()
         self.svc = svc
         self.path = item.path
@@ -174,14 +186,23 @@ class _ThumbJob(QRunnable):
         self.size = item.size
         self.mtime = item.mtime
         self.gen = generation
+        self.skip_model = skip_model    # önbellekte yoksa çizme (sınır dışı model)
         self.setAutoDelete(True)
+
+    def _emit(self, img, meta):
+        """Sonucu ana iş parçacığına gönder. Uygulama kapanırken iş hâlâ sürüyor olabilir (büyük 3D modeller
+        saniyeler sürer); sinyal nesnesi silinmişse sessizce bırak — yoksa PyQt uygulamayı çökertir."""
+        if self.svc.closed:
+            return
+        try:
+            self.svc.signals.ready.emit(self.path, img, meta, self.gen)
+        except RuntimeError:
+            pass
 
     def run(self):
         if self.gen != self.svc.generation:
             return
-        key = _cache_key(self.path, self.size, self.mtime)
-        jpg = os.path.join(THUMB_DIR, key + ".jpg")
-        meta_f = os.path.join(THUMB_DIR, key + ".json")
+        jpg, meta_f = _cache_paths(self.path, self.size, self.mtime, self.kind)
         meta, img = {}, QImage()
         try:
             if os.path.exists(meta_f):
@@ -190,10 +211,14 @@ class _ThumbJob(QRunnable):
                 if os.path.exists(jpg):
                     img = QImage(jpg)
                 if not img.isNull() or meta.get("no_image"):
-                    self.svc.signals.ready.emit(self.path, img, meta, self.gen)
+                    self._emit(img, meta)
                     return
         except Exception:
             meta = {}
+        if self.kind == KIND_MODEL and self.skip_model:
+            # sınır dışı: simge gösterilir, önbelleğe "resim yok" yazılmaz (açılınca ya da sınır değişince çizilir)
+            self._emit(QImage(), {})
+            return
         try:
             if self.kind == KIND_IMAGE:
                 img = image_io.make_thumbnail(self.path)
@@ -225,6 +250,16 @@ class _ThumbJob(QRunnable):
                     img.loadFromData(out)
                 meta["duration"] = dur
                 meta["w"], meta["h"] = parse_resolution(err)
+            elif self.kind == KIND_MODEL:
+                if self.size < 400 * 1024 * 1024:
+                    from .model_io import load_model, render_preview
+                    with _MODEL_LOCK:
+                        if self.gen != self.svc.generation:   # beklerken klasör değişti
+                            return
+                        m = load_model(self.path)
+                        img = render_preview(m, 320, 180)
+                        meta["tris"] = m.triangles
+                        del m
             elif self.kind == KIND_AUDIO:
                 rc, out, err = run_ffmpeg(["-i", self.path, "-an", "-frames:v", "1", "-vf",
                                            "scale=320:-2", "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "3", "-"],
@@ -248,7 +283,7 @@ class _ThumbJob(QRunnable):
                 json.dump(meta, f)
         except OSError:
             pass
-        self.svc.signals.ready.emit(self.path, img, meta, self.gen)
+        self._emit(img, meta)
 
 
 class ThumbnailService(QObject):
@@ -263,6 +298,10 @@ class ThumbnailService(QObject):
         self.signals = _ThumbSignals()
         self.signals.ready.connect(self._on_ready, Qt.ConnectionType.QueuedConnection)
         self._requested = set()
+        self.closed = False
+        app = QCoreApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.shutdown)
 
     WINDOW = 40   # açılışta `first` çevresinde hazırlanan öğe sayısı (her yönde)
 
@@ -274,24 +313,65 @@ class ThumbnailService(QObject):
         self._requested = set()
         ordered = list(items)
         i = ordered.index(first) if first is not None and first in ordered else 0
+        # 3D modeller ağır: yalnızca açık dosyaya en yakın N tanesi kendiliğinden çizilir
+        from . import layout_prefs as lp
+        n = int(lp.get("model_thumb_count") or 0)
+        models = [(abs(j - i), j, it.path) for j, it in enumerate(ordered) if it.kind == KIND_MODEL]
+        self._model_ok = None if n <= 0 else {p for _d, _j, p in sorted(models)[:n]}
+        self._model_mb = int(lp.get("model_thumb_mb") or 0)
         lo, hi = max(0, i - self.WINDOW), i + self.WINDOW + 1
         for it in ordered[i:hi] + ordered[lo:i][::-1]:
             self.ensure(it)
+
+    _model_ok = None
+    _model_mb = 0
+
+    def _skip_model(self, item):
+        if item.kind != KIND_MODEL:
+            return False
+        if self._model_mb and item.size > self._model_mb * 1024 * 1024:
+            return True
+        return self._model_ok is not None and item.path not in self._model_ok
 
     def ensure(self, item):
         """Öğe için daha önce istenmediyse küçük resim işini kuyruğa alır."""
         if item.path in self._requested:
             return
         self._requested.add(item.path)
-        self.pool.start(_ThumbJob(self, item, self.generation))
+        self.pool.start(_ThumbJob(self, item, self.generation, self._skip_model(item)))
 
     def request_one(self, item):
         self.pool.start(_ThumbJob(self, item, self.generation), 10)
+
+    def store_model_thumb(self, item, model):
+        """Sınır dışında kaldığı için çizilmemiş bir model açılınca: yüklü modelden küçük resim üret
+        (dosya yeniden okunmaz) ve önbelleğe yaz."""
+        jpg, meta_f = _cache_paths(item.path, item.size, item.mtime, item.kind)
+        if os.path.exists(meta_f):
+            return
+        gen = self.generation
+
+        def work():
+            from .model_io import render_preview
+            with _MODEL_LOCK:
+                img = render_preview(model, 320, 180)
+            try:
+                img.save(jpg, "JPG", 88)
+                with open(meta_f, "w", encoding="utf-8") as f:
+                    json.dump({"tris": model.triangles}, f)
+            except OSError:
+                pass
+            return img
+
+        run_async(work, on_done=lambda img, p=item.path: None if self.closed else self.signals.ready.emit(p, img, {}, gen))
 
     def _on_ready(self, path, img, meta, gen):
         self.ready.emit(path, img, meta)
 
     def shutdown(self):
+        if self.closed:
+            return
+        self.closed = True        # sürmekte olan işler artık sonuç göndermesin
         self.generation += 1
         self.pool.clear()
         self.pool.waitForDone(1500)

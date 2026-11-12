@@ -15,14 +15,14 @@ SHORTCUTS = [
     ("Ctrl + ← / →", "sc_seek60"),
     ("↑ / ↓", "sc_volume"),
     ("M", "sc_mute"),
-    ("F / Çift tık", "sc_fullscreen"),
+    ("F / {dblclick}", "sc_fullscreen"),
     ("T", "sc_theater"),
     ("I", "sc_pip"),
     ("C", "sc_cc"),
     ("G / H", "sc_subdelay"),
     ("Ctrl + J / Ctrl + K", "sc_audiodelay"),
     ("Shift + < / >", "sc_speed"),
-    (". (duraklatılmışken)", "sc_frame"),
+    (". ({paused})", "sc_frame"),
     ("0 – 9", "sc_percent"),
     ("Home / End", "sc_homeend"),
     ("N / P  ·  PgDn / PgUp", "sc_nextprev"),
@@ -33,12 +33,19 @@ SHORTCUTS = [
     ("Ctrl + O / Ctrl + Shift + O", "sc_open"),
     ("Ctrl + T", "sc_pin"),
     ("Ctrl + D", "sc_theme"),
-    ("Ctrl + Tekerlek", "sc_zoom"),
-    ("+ / − / 0 / 1 / R (resim)", "sc_image"),
+    ("Ctrl + {wheel}", "sc_zoom"),
+    ("+ / − / 0 / 1 / R ({image})", "sc_image"),
+    ("{drag} / {wheel} / 0 / R / W / G / D (3D)", "sc_model"),
     ("Delete", "sc_delete"),
     ("Esc", "sc_escape"),
     ("F1", "sc_help"),
 ]
+
+
+def keys_text(keys):
+    """Kısayol tablosundaki tuş adlarını seçili dile çevirir ({dblclick}, {wheel} ...)."""
+    return keys.format(dblclick=t("k_dblclick"), paused=t("k_paused"), wheel=t("k_wheel"),
+                       image=t("k_image"), drag=t("k_drag"))
 
 
 def handle_key(w, e) -> bool:
@@ -119,6 +126,42 @@ def handle_key(w, e) -> bool:
         return True
     if k == K.Key_L and not playable and not image:
         w.toggle_sidebar()
+        return True
+
+    if cur is not None and cur.is_model:
+        v = w.viewer3d
+        if v is None:
+            return False
+        if k in (K.Key_Right, K.Key_Down):
+            w.play_next()
+        elif k in (K.Key_Left, K.Key_Up):
+            w.play_prev()
+        elif k in (K.Key_Plus, K.Key_Equal):
+            v.zoom_by(1.25)
+        elif k == K.Key_Minus:
+            v.zoom_by(0.8)
+        elif k in (K.Key_0, K.Key_1):
+            v.reset_view()
+        elif k == K.Key_R:
+            v.rotate_model("z", 90) if shift else v.rotate_model("x", -90)
+        elif k == K.Key_W:
+            v.set_wireframe(not v.wireframe)
+        elif k == K.Key_G:
+            v.set_grid(not v.show_grid)
+            lp.prefs.set("model_grid", v.show_grid)
+        elif k == K.Key_D and not ctrl:
+            v.set_dims(not v.show_dims)
+            lp.prefs.set("model_dims", v.show_dims)
+        elif k in (K.Key_Space, K.Key_K):
+            v.set_autorotate(not v.autorotate)
+        elif ctrl and k == K.Key_C:
+            from PyQt6.QtWidgets import QApplication
+            QApplication.clipboard().setImage(v.image())
+            w.osd(t("copied"))
+        elif ctrl and k == K.Key_S:
+            w._save_model_view(transparent=shift)
+        else:
+            return False
         return True
 
     if image:

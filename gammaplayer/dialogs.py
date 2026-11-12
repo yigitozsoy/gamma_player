@@ -300,6 +300,9 @@ class PreferencesDialog(ThemedDialog):
                                            ("infobar", "lay_infobar", "lay_infobar_desc")):
             lay.addWidget(_subsection(t(title_key), t(desc_key)))
             lay.addWidget(LayoutEditor(group, self._personal_changed))
+        lay.addWidget(_row(t("p_infobar_labels"),
+                           self._toggle("infobar_labels", lambda v: self.win.info._apply_labels()),
+                           t("p_infobar_labels_desc")))
 
         lay.addWidget(_subsection(t("lay_panels"), ""))
         pc = self._personal_changed
@@ -322,6 +325,22 @@ class PreferencesDialog(ThemedDialog):
                                                                               (t("remaining"), "remaining")], pc)))
         lay.addWidget(_row(t("p_flash"), self._toggle("flash_anim"), t("p_flash_desc")))
         lay.addWidget(_row(t("p_title_fs"), self._toggle("show_title_fullscreen", lambda v: pc())))
+
+        lay.addWidget(_subsection(t("lay_model"), ""))
+        v3 = self.win.viewer3d
+        lay.addWidget(_row(t("p_model_grid"), self._toggle("model_grid", lambda v: v3 is not None and v3.set_grid(v)),
+                           t("p_model_grid_desc")))
+        lay.addWidget(_row(t("p_model_autorotate"), self._toggle("model_autorotate"), t("p_model_autorotate_desc")))
+        lay.addWidget(_row(t("p_model_dims"), self._toggle("model_dims", lambda v: v3 is not None and v3.set_dims(v)),
+                           t("p_model_dims_desc")))
+        lay.addWidget(_row(t("p_model_thumb_count"),
+                           self._combo("model_thumb_count", [("10", 10), ("20", 20), ("50", 50), ("100", 100),
+                                                             (t("unlimited"), 0)]),
+                           t("p_model_thumb_count_desc")))
+        lay.addWidget(_row(t("p_model_thumb_mb"),
+                           self._combo("model_thumb_mb", [("5 MB", 5), ("10 MB", 10), ("20 MB", 20), ("50 MB", 50),
+                                                          ("100 MB", 100), (t("unlimited"), 0)]),
+                           t("p_model_thumb_mb_desc")))
 
         lay.addWidget(_subsection(t("lay_mouse_keys"), ""))
         lay.addWidget(_row(t("p_click"), self._combo("click_action", [(t("play_pause"), "play"), (t("nothing"), "none")])))
@@ -411,14 +430,14 @@ class PreferencesDialog(ThemedDialog):
 
     def _page_shortcuts(self, lay):
         lay.addWidget(_section(t("cat_shortcuts")))
-        from .shortcuts import SHORTCUTS
+        from .shortcuts import SHORTCUTS, keys_text
         box = QWidget()
         grid = QGridLayout(box)
         grid.setContentsMargins(0, 6, 0, 0)
         grid.setVerticalSpacing(8)
         grid.setHorizontalSpacing(18)
         for r, (keys, desc) in enumerate(SHORTCUTS):
-            k = QLabel(keys)
+            k = QLabel(keys_text(keys))
             k.setStyleSheet("font-family: 'Cascadia Mono', Consolas, monospace; font-weight: 600;")
             d = QLabel(t(desc))
             d.setWordWrap(True)
@@ -687,8 +706,16 @@ class MediaInfoDialog(ThemedDialog):
         lay.addLayout(btns)
         if item.is_image:
             thumbs.run_async(self._image_info, item.path, on_done=self._set)
+        elif item.is_model:
+            cached = getattr(parent, "_model_cache", {}).get(item.path)
+            thumbs.run_async(self._model_info, item.path, cached, on_done=self._set, on_fail=self._set)
         else:
             thumbs.run_async(thumbs.probe, item.path, on_done=self._set_probe)
+
+    @staticmethod
+    def _model_info(path, model=None):
+        from .model_io import load_model, model_info_text
+        return model_info_text(model if model is not None else load_model(path), t)
 
     @staticmethod
     def _image_info(path):
@@ -699,9 +726,10 @@ class MediaInfoDialog(ThemedDialog):
             from . import image_io
             image_io._ensure_heif()
             with Image.open(path) as im:
-                lines.append(f"Format: {im.format}  Mod: {im.mode}  Boyut: {im.size[0]}×{im.size[1]}")
+                lines.append(f"{t('format')}: {im.format}  {t('m_mode')}: {im.mode}  "
+                             f"{t('size')}: {im.size[0]}×{im.size[1]}")
                 if getattr(im, "n_frames", 1) > 1:
-                    lines.append(f"Kare sayısı: {im.n_frames}")
+                    lines.append(f"{t('m_frames')}: {im.n_frames}")
                 for k, v in (im.info or {}).items():
                     if k in ("exif", "icc_profile", "xmp") or isinstance(v, (bytes, bytearray)):
                         continue
@@ -735,7 +763,7 @@ class ShortcutsDialog(ThemedDialog):
     def __init__(self, parent=None):
         super().__init__(parent, t("shortcuts"))
         self.resize(560, 700)
-        from .shortcuts import SHORTCUTS
+        from .shortcuts import SHORTCUTS, keys_text
         outer = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -747,7 +775,7 @@ class ShortcutsDialog(ThemedDialog):
         grid.setVerticalSpacing(8)
         grid.setHorizontalSpacing(18)
         for r, (keys, desc) in enumerate(SHORTCUTS):
-            k = QLabel(keys)
+            k = QLabel(keys_text(keys))
             k.setStyleSheet("font-family: 'Cascadia Mono', Consolas, monospace; font-weight: 600;")
             d = QLabel(t(desc))
             d.setWordWrap(True)

@@ -80,7 +80,7 @@ class MediaModel(QAbstractListModel):
 
 
 def _kind_label(it):
-    return {"video": t("video"), "audio": t("audio"), "image": t("image")}.get(it.kind, "")
+    return {"video": t("video"), "audio": t("audio"), "image": t("image"), "model": t("model")}.get(it.kind, "")
 
 
 def _placeholder_color(name):
@@ -154,12 +154,13 @@ class MediaDelegate(QStyledItemDelegate):
                 g.setColorAt(0, base)
                 g.setColorAt(1, base.darker(115))
             p.fillRect(tr, g)
-            name = {"video": "movie", "audio": "music", "image": "image"}.get(it.kind, "file_open")
+            name = {"video": "movie", "audio": "music", "image": "image", "model": "view_in_ar"}.get(it.kind, "file_open")
             ic = icons.pixmap(name, "#ffffff" if it.is_audio else color("text3"), 30)
             p.drawPixmap(int(tr.center().x() - 15), int(tr.center().y() - 15), ic)
         if is_cur:
             p.fillRect(tr, QColor(0, 0, 0, 110))
-            ic = icons.pixmap("equalizer", "#ffffff", 26)
+            # video / müzik çalıyor (ekolayzer); görsel ve 3D model yalnızca görüntüleniyor (göz)
+            ic = icons.pixmap("equalizer" if it.kind in ("video", "audio") else "visibility", "#ffffff", 26)
             p.drawPixmap(int(tr.center().x() - 13), int(tr.center().y() - 13), ic)
         p.restore()
 
@@ -167,7 +168,7 @@ class MediaDelegate(QStyledItemDelegate):
         badge = ""
         if it.kind in ("video", "audio") and it.duration and it.duration > 0:
             badge = fmt_time(it.duration)
-        elif it.is_image:
+        elif it.is_image or it.is_model:
             badge = it.ext.strip(".").upper()
         if badge:
             f = QFont(option.font)
@@ -217,7 +218,7 @@ class MediaDelegate(QStyledItemDelegate):
             if current_name() == "light" and ac.lightness() > 150:
                 ac = QColor(color("text2"))
             p.setPen(ac)
-            meta2 = t("now_playing")
+            meta2 = t("now_playing" if it.kind in ("video", "audio") else "now_viewing")
         p.drawText(QRectF(x, y, tw, fm2.height()), Qt.AlignmentFlag.AlignLeft,
                    fm2.elidedText(meta2, Qt.TextElideMode.ElideRight, int(tw)))
         p.restore()
@@ -287,7 +288,7 @@ class Sidebar(QWidget):
         chips.setContentsMargins(8, 4, 0, 4)
         chips.setSpacing(8)
         self.chips = {}
-        for key in ("all", "video", "audio", "image"):
+        for key in ("all", "video", "audio", "image", "model"):
             c = Chip(t("f_" + key))
             c.clicked.connect(lambda _=False, k=key: self._on_chip(k))
             chips.addWidget(c)

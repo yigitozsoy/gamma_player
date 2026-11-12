@@ -988,7 +988,7 @@ class VideoEditorDialog(ThemedDialog):
 
         def choose_logo():
             p, _ = QFileDialog.getOpenFileName(self, t("wm_add_logo"), os.path.dirname(wm.get("wm_logo") or self.item.path),
-                                               "Görsel (*.png *.jpg *.jpeg *.webp *.bmp *.svg)")
+                                               t("images_filter") + " (*.png *.jpg *.jpeg *.webp *.bmp *.svg)")
             if p:
                 self.lbl_logo.setText(os.path.basename(p))
                 chk2.setChecked(True)
@@ -1082,8 +1082,12 @@ class VideoEditorDialog(ThemedDialog):
 
     @staticmethod
     def _ff_path(p):
+        """Yolu ffmpeg filtre seçeneği olarak yazılabilir hâle getirir (tırnaksız kullanılır).
+        ffmpeg iki kez çözer: önce filtre grafiği ( \\ ' [ ] , ; ), sonra seçenek ( \\ ' : ). Bu yüzden iki kat
+        kaçış gerekir; yoksa adında ' [ ] , ; olan dosyalarda (ör. "Yiğit's video.srt") altyazı gömme bozulur."""
         p = os.path.abspath(p).replace("\\", "/")
-        return p.replace(":", "\\:").replace("'", "\\'")
+        p = re.sub(r"([\\':])", r"\\\1", p)          # seçenek düzeyi
+        return re.sub(r"([\\'\[\],;])", r"\\\1", p)  # filtre grafiği düzeyi
 
     def _burn_filters(self, a_ms, src, si):
         """Altyazıyı görüntüye yakar; kesim başlangıcına göre zamanlamayı korur. Görünüm, oynatıcıdaki
@@ -1103,9 +1107,9 @@ class VideoEditorDialog(ThemedDialog):
                      f"Outline={max(0, outline // 2)},Shadow=1,OutlineColour=&H00000000,"
                      f"MarginV={20 + int(prefs.get('sub_margin', 24)) // 2}")
         if src:
-            target = f"filename='{self._ff_path(src)}'"
+            target = f"filename={self._ff_path(src)}"
         else:
-            target = f"filename='{self._ff_path(self.item.path)}':si={si}"
+            target = f"filename={self._ff_path(self.item.path)}:si={si}"
         off = a_ms / 1000.0
         return [f"setpts=PTS+{off:.3f}/TB", f"subtitles={target}:force_style='{style}'", "setpts=PTS-STARTPTS"]
 
