@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Derleme çıktıları
+build/
+dist/
+packaging/version_info.txt
+packaging/version.iss
+packaging/extensions_registry.iss
+*.spec.bak
+
+# Editör / sistem
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+.claude/
+
+# Test medyası (depoya büyük dosya koymayın)
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.mp3
+*.flac
+*.wav

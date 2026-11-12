@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gamma-player"
+description = "YouTube görünümlü, VLC motorlu evrensel medya oynatıcı (video, müzik, görsel)"
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Yiğit Özsoy" }]
+dynamic = ["version"]
+dependencies = [
+    "PyQt6>=6.6.0",
+    "python-vlc>=3.0.20",
+    "Pillow>=11.0.0",
+    "pillow-heif>=1.8.0",
+    "imagecodecs>=2024.1.1",
+    "imageio-ffmpeg>=0.5.0",
+    "numpy>=1.26",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "Environment :: X11 Applications :: Qt",
+    "Topic :: Multimedia :: Video :: Display",
+    "Topic :: Multimedia :: Sound/Audio :: Players",
+    "Topic :: Multimedia :: Graphics :: Viewers",
+]
+
+[project.gui-scripts]
+gamma = "gammaplayer.app:main"
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6.0"]
+
+[tool.setuptools]
+packages = ["gammaplayer"]
+
+[tool.setuptools.dynamic]
+version = { attr = "gammaplayer.__version__" }
+
+[tool.setuptools.package-data]
+gammaplayer = ["assets/*"]
