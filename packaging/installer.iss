@@ -23,10 +23,22 @@ OutputBaseFilename=gamma-setup-{#AppVersion}
 SetupIconFile=..\gammaplayer\assets\logo.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName} {#AppVersion}
-LicenseFile=..\LICENSE
+; Lisans sayfası yok: GPL kabul gerektirmez (kullanmak için onay istemez); LICENSE.txt kurulum klasörüne konur.
 Compression=lzma2/ultra64
 SolidCompression=yes
-WizardStyle=modern
+; Görünüm (Inno Setup 6.7+): Windows 11 stili, Windows'un açık/koyu temasını izler, ayırıcı çizgiler yok.
+; Renkler gamma'nın temalarıyla aynı (koyu: YouTube siyahı, açık: beyaz); görseller make_meta.py'de üretilir.
+WizardStyle=modern dynamic windows11 hidebevels
+WizardBackColor=#ffffff
+WizardBackColorDynamicDark=#0f0f0f
+WizardImageBackColor=#ffffff
+WizardImageBackColorDynamicDark=#0f0f0f
+WizardSmallImageBackColor=#ffffff
+WizardSmallImageBackColorDynamicDark=#0f0f0f
+WizardSmallImageFile={#WizSmall}
+WizardSmallImageFileDynamicDark={#WizSmallDark}
+WizardImageFile={#WizLarge}
+WizardImageFileDynamicDark={#WizLargeDark}
 ChangesAssociations=yes
 CloseApplications=yes
 ; Yalnızca çalışan .exe'ler kapatılsın. GammaThumbs.dll Gezgin'in içinde yüklü olduğundan varsayılan filtre
@@ -104,16 +116,21 @@ Root: HKA; Subkey: "Software\gamma\Capabilities"; ValueType: string; ValueName: 
 Root: HKA; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "gamma"; ValueData: "Software\gamma\Capabilities"; Flags: uninsdeletevalue
 
 ; ProgID'ler
+; EditFlags = FTA_OpenIsSafe: internetten inen dosyalar (MOTW) açılırken "Güvenlik uyarısı - Bilinmeyen yayımcı" sorulmasın
 Root: HKA; Subkey: "Software\Classes\gamma.video"; ValueType: string; ValueData: "Video (gamma)"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\gamma.video"; ValueType: dword; ValueName: "EditFlags"; ValueData: "$00010000"
 Root: HKA; Subkey: "Software\Classes\gamma.video\DefaultIcon"; ValueType: string; ValueData: "{app}\{#AppExe},0"
 Root: HKA; Subkey: "Software\Classes\gamma.video\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
 Root: HKA; Subkey: "Software\Classes\gamma.audio"; ValueType: string; ValueData: "Ses (gamma)"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\gamma.audio"; ValueType: dword; ValueName: "EditFlags"; ValueData: "$00010000"
 Root: HKA; Subkey: "Software\Classes\gamma.audio\DefaultIcon"; ValueType: string; ValueData: "{app}\{#AppExe},0"
 Root: HKA; Subkey: "Software\Classes\gamma.audio\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
 Root: HKA; Subkey: "Software\Classes\gamma.image"; ValueType: string; ValueData: "Görsel (gamma)"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\gamma.image"; ValueType: dword; ValueName: "EditFlags"; ValueData: "$00010000"
 Root: HKA; Subkey: "Software\Classes\gamma.image\DefaultIcon"; ValueType: string; ValueData: "{app}\{#AppExe},0"
 Root: HKA; Subkey: "Software\Classes\gamma.image\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
 Root: HKA; Subkey: "Software\Classes\gamma.model"; ValueType: string; ValueData: "3D model (gamma)"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\gamma.model"; ValueType: dword; ValueName: "EditFlags"; ValueData: "$00010000"
 Root: HKA; Subkey: "Software\Classes\gamma.model\DefaultIcon"; ValueType: string; ValueData: "{app}\{#AppExe},0"
 Root: HKA; Subkey: "Software\Classes\gamma.model\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""
 

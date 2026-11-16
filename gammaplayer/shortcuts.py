@@ -36,6 +36,8 @@ SHORTCUTS = [
     ("Ctrl + {wheel}", "sc_zoom"),
     ("+ / − / 0 / 1 / R ({image})", "sc_image"),
     ("{drag} / {wheel} / 0 / R / W / G / D (3D)", "sc_model"),
+    ("1 – 9 (3D)", "sc_model_keys"),
+    ("Shift + {wheel} / Shift + ← → (3D)", "sc_model_section"),
     ("Delete", "sc_delete"),
     ("Esc", "sc_escape"),
     ("F1", "sc_help"),
@@ -132,7 +134,9 @@ def handle_key(w, e) -> bool:
         v = w.viewer3d
         if v is None:
             return False
-        if k in (K.Key_Right, K.Key_Down):
+        if v.section is not None and shift and k in (K.Key_Left, K.Key_Right, K.Key_Up, K.Key_Down):
+            v.move_section(0.02 if k in (K.Key_Right, K.Key_Up) else -0.02)   # kesiti kaydır
+        elif k in (K.Key_Right, K.Key_Down):
             w.play_next()
         elif k in (K.Key_Left, K.Key_Up):
             w.play_prev()
@@ -140,8 +144,30 @@ def handle_key(w, e) -> bool:
             v.zoom_by(1.25)
         elif k == K.Key_Minus:
             v.zoom_by(0.8)
-        elif k in (K.Key_0, K.Key_1):
+        elif k == K.Key_0:
             v.reset_view()
+        elif k == K.Key_1:                                   # zemine yatan yüzü değiştir
+            w.model_key_osd("face", v.lay_next_face(-1 if shift else 1))
+        elif k == K.Key_2:                                   # kesit: yükseklik → genişlik → derinlik → kapalı
+            v.cycle_section()
+            w.model_key_osd("section")
+        elif k == K.Key_3:                                   # ölçüler
+            v.set_dims(not v.show_dims)
+            lp.prefs.set("model_dims", v.show_dims)
+        elif k == K.Key_4:                                   # üçgenler (tel kafes)
+            v.set_wireframe(not v.wireframe)
+            w.model_key_osd("wire")
+        elif k == K.Key_5:
+            v.set_grid(not v.show_grid)
+            lp.prefs.set("model_grid", v.show_grid)
+        elif k == K.Key_6:
+            v.set_autorotate(not v.autorotate)
+        elif k in (K.Key_7, K.Key_8, K.Key_9):               # önden / yandan / üstten bakış
+            name = {K.Key_7: "front", K.Key_8: "side", K.Key_9: "top"}[k]
+            v.set_view(name)
+            w.model_key_osd(name)
+        elif v.section is not None and shift and k in (K.Key_Left, K.Key_Right, K.Key_Up, K.Key_Down):
+            v.move_section(0.02 if k in (K.Key_Right, K.Key_Up) else -0.02)   # kesiti kaydır
         elif k == K.Key_R:
             v.rotate_model("z", 90) if shift else v.rotate_model("x", -90)
         elif k == K.Key_W:

@@ -340,7 +340,14 @@ class ThumbnailService(QObject):
         self._requested.add(item.path)
         self.pool.start(_ThumbJob(self, item, self.generation, self._skip_model(item)))
 
-    def request_one(self, item):
+    def request_one(self, item, force=False):
+        if force:
+            # Dosya yerinde değişti: aynı saniyede aynı boyutta kalmış olabilir, eski önbelleği kullanma
+            for f in _cache_paths(item.path, item.size, item.mtime, item.kind):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
         self.pool.start(_ThumbJob(self, item, self.generation), 10)
 
     def store_model_thumb(self, item, model):

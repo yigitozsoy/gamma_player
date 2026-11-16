@@ -21,7 +21,8 @@ from .sidebar import Sidebar
 from .theme import theme, current_name
 from .titlebar import TitleBar
 from .views import HomeView, AudioView, InfoBar
-from .vlc_engine import VLCEngine, VLC_ERROR
+from . import vlc_engine
+from .vlc_engine import VLCEngine
 
 user32 = ctypes.windll.user32
 user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int,
@@ -256,7 +257,7 @@ class MainWindow(QMainWindow):
             return self.engine
         self._engine_tried = True
         if not VLCEngine.available():
-            self._vlc_error = VLC_ERROR
+            self._vlc_error = vlc_engine.VLC_ERROR
             return None
         try:
             self.engine = VLCEngine(int(self.video_host.winId()), self)
@@ -849,11 +850,33 @@ class MainWindow(QMainWindow):
             v.double_clicked.connect(lambda: lp.get("dblclick_fullscreen") and self.toggle_fullscreen())
             v.context_requested.connect(self._model_context)
             v.autorotate_changed.connect(self.overlay.set_slideshow)
+            v.section_changed.connect(lambda: self.model_key_osd("section"))
             self._model_lay.addWidget(v)
             self.viewer3d = v
         self.viewer3d.set_grid(lp.get("model_grid"))
         self.viewer3d.set_dims(lp.get("model_dims"))
         return self.viewer3d
+
+    def model_key_osd(self, what, value=None):
+        """3D kısayollarının kısa bildirimi."""
+        v = self.viewer3d
+        if v is None:
+            return
+        if what == "face":
+            self.osd(t("m_face", n=value))
+        elif what == "section":
+            if v.section is None:
+                self.osd(t("m_section_off"))
+            else:
+                self.osd(t("m_section", axis=t("m_axis_" + v.section), pct=round(v.section_pos * 100)))
+        elif what == "wire":
+            if v.wireframe and v.model is not None:
+                n = f"{v.model.triangles:,}"
+                self.osd(t("m_tri_on", n=n.replace(",", ".") if t("lang_code") == "tr" else n))
+            else:
+                self.osd(t("m_tri_off"))
+        elif what in ("front", "side", "top"):
+            self.osd(t("m_view_" + what))
 
     def _active_viewer(self):
         if self.current is not None and self.current.is_model and self.viewer3d is not None:
@@ -962,6 +985,12 @@ class MainWindow(QMainWindow):
         m.addAction(t("reset_view"), v.reset_view)
         m.addAction(t("flip_model"), lambda: v.rotate_model("x", -90))
         m.addAction(t("turn_model"), lambda: v.rotate_model("z", 90))
+        m.addAction(t("lay_face"), lambda: self.model_key_osd("face", v.lay_next_face()))
+        sec = m.addAction(t("section_view"))
+        sec.setCheckable(True)
+        sec.setChecked(v.section is not None)
+        sec.triggered.connect(lambda: (v.cycle_section() if v.section is None else setattr(v, "section", None) or v.update(),
+                                       self.model_key_osd("section")))
         m.addSeparator()
         wf = m.addAction(t("wireframe"))
         wf.setCheckable(True)
@@ -2100,7 +2129,18 @@ class MainWindow(QMainWindow):
         self._refresh_sidebar()
         it = Library.find(path, self.lib.all_items)
         if it:
-            self.thumbs.request_one(it)
+            # Üzerine kaydedilen dosyada liste aynı kalır (refresh bir şey değiştirmez): boyut, tarih ve
+            # çözünürlük yenilenmezse küçük resim eski önbellekten gelir, "1024×768" gibi eski bilgi kalır
+            try:
+                st = os.stat(it.path)
+                it.size, it.mtime = st.st_size, st.st_mtime
+            except OSError:
+                pass
+            it.width = it.height = 0
+            self.sidebar.model.refresh_row(it.path)
+            if it is self.current:
+                self.info.set_details(it)
+            self.thumbs.request_one(it, force=True)
 
     # ================================================================== sürükle-bırak
     def dragEnterEvent(self, e):

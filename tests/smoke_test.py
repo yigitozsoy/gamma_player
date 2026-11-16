@@ -465,6 +465,36 @@ def gui_tests(done):
         p.history.clear()
         w._close_image_editor()
 
+    @step(10, "düzenleyici: kırpma açıkken üzerine kaydet")
+    def _():
+        from gammaplayer import image_editor
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtWidgets import QMessageBox
+        w._open_image_editor()
+        p = w._edit_panel
+        t0 = time.time()
+        while p.proxy is None and time.time() - t0 < 5:
+            app.processEvents()
+        p._start_crop()
+        iw, ih = w.viewer._img_size()
+        w.viewer.crop = QRectF(0, 0, iw / 2, ih)            # çerçeve açık, Enter'a basılmadan kaydet
+        orig = image_editor.QMessageBox.question
+        image_editor.QMessageBox.question = lambda *a, **k: QMessageBox.StandardButton.Yes
+        try:
+            p.save_overwrite()
+        finally:
+            image_editor.QMessageBox.question = orig
+
+    @step(2000, "kaydettikten sonra kırpma çerçevesi kalmadı")
+    def _():
+        assert not w.viewer.crop_mode, "kırpma çerçevesi hâlâ açık"
+        im = Image.open(M("white_bg.jpg"))
+        assert im.size == (400, 500), im.size              # açık kalan kırpma da uygulandı
+        assert w._edit_panel is None, "düzenleyici kapanmadı"
+        assert tuple(w.viewer._img_size()) == (400, 500), w.viewer._img_size()   # yeni resim gösteriliyor
+        assert (w.current.width, w.current.height) == (400, 500), "listedeki çözünürlük eski"
+        assert w.current.size == os.path.getsize(M("white_bg.jpg")), "listedeki dosya boyutu eski"
+
     @step(10, "hızlı dönüştürme: ICO")
     def _():
         w.quick_convert(w.current, ".ico")
@@ -551,6 +581,34 @@ def gui_tests(done):
         assert tr.hasAlphaChannel() and tr.pixelColor(0, 0).alpha() == 0, "arka plan saydam değil"
         assert tr.pixelColor(tr.width() // 2, tr.height() // 2).alpha() > 200, "model yok"
         v.set_dims(False)
+
+    @step(10, "3D: 1-9 kısayolları ve kesit")
+    def _():
+        from PyQt6.QtGui import QKeyEvent
+        from PyQt6.QtCore import QEvent, Qt
+        v = w.viewer3d
+        plain = v.image()
+
+        def key(k, mods=Qt.KeyboardModifier.NoModifier):
+            w.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, k, mods))
+        key(Qt.Key.Key_2)
+        assert v.section == "y", v.section
+        cut = v.image()
+        assert cut != plain, "kesit çizilmedi"
+        key(Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier)
+        assert abs(v.section_pos - 0.48) < 1e-6, v.section_pos
+        for _ in range(3):
+            key(Qt.Key.Key_2)
+        assert v.section is None
+        key(Qt.Key.Key_1)
+        assert v._face == 1
+        key(Qt.Key.Key_4)
+        assert v.wireframe
+        key(Qt.Key.Key_4)
+        key(Qt.Key.Key_9)
+        assert v.pitch == 90.0
+        key(Qt.Key.Key_0)
+        assert v.pitch == v.DEF_PITCH
 
     @step(10, "3D: sonraki model ve bilgi")
     def _():

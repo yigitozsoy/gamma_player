@@ -52,6 +52,15 @@ if (-not $NoVlc) {
     Get-ChildItem (Join-Path $VlcDir "plugins") -Directory | Where-Object { $Skip -notcontains $_.Name } | ForEach-Object {
         Copy-Item $_.FullName (Join-Path $Target "plugins\$($_.Name)") -Recurse -Force
     }
+    # Eklenti önbelleği (plugins.dat): yoksa VLC her açılışta ~350 eklenti DLL'sini tek tek yükleyip tarar.
+    # Yeni kurulumda Defender her birini taradığı için ilk açılış saniyelerce sürüyordu.
+    $CacheGen = Join-Path $VlcDir "vlc-cache-gen.exe"
+    if (Test-Path $CacheGen) {
+        & $CacheGen (Join-Path $Target "plugins") | Out-Null
+        if (-not (Test-Path (Join-Path $Target "plugins\plugins.dat"))) { Write-Warning "plugins.dat oluşturulamadı" }
+    } else {
+        Write-Warning "vlc-cache-gen.exe yok; VLC eklenti önbelleği oluşturulmadı (açılış yavaş olur)"
+    }
     foreach ($f in @("COPYING.txt", "AUTHORS.txt")) {
         $src = Join-Path $VlcDir $f
         if (Test-Path $src) { Copy-Item $src (Join-Path $Target "VLC-$f") -Force }

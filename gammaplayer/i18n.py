@@ -99,6 +99,16 @@ S = {
     "copy_view": ("Görüntüyü kopyala", "Copy view"), "save_view": ("Görüntüyü PNG olarak kaydet…", "Save view as PNG…"),
     "save_view_transparent": ("Saydam PNG olarak kaydet…", "Save as transparent PNG…"),
     "dimensions": ("Ölçüler (D)", "Dimensions (D)"),
+    "lay_face": ("Zemine yatan yüzü değiştir (1)", "Change the face lying on the floor (1)"),
+    "section_view": ("Kesit görünümü (2)", "Section view (2)"),
+    "m_face": ("Zemindeki yüz: {n} / 6", "Face on the floor: {n} / 6"),
+    "m_section": ("Kesit: {axis} · %{pct}  (Shift + tekerlek ile kaydır)",
+                  "Section: {axis} · {pct}%  (Shift + wheel to move)"),
+    "m_section_off": ("Kesit kapalı", "Section off"),
+    "m_axis_x": ("genişlik", "width"), "m_axis_y": ("yükseklik", "height"), "m_axis_z": ("derinlik", "depth"),
+    "m_tri_on": ("Üçgenler gösteriliyor: {n}", "Showing triangles: {n}"),
+    "m_tri_off": ("Üçgenler gizlendi", "Triangles hidden"),
+    "m_view_front": ("Önden", "Front"), "m_view_side": ("Yandan", "Side"), "m_view_top": ("Üstten", "Top"),
     "convert_model": ("Başka biçimde kaydet", "Save in another format"),
     "converting": ("Dönüştürülüyor…", "Converting…"),
     "saved_to": ("Kaydedildi: {p}", "Saved: {p}"),
@@ -439,6 +449,11 @@ S = {
     "sc_model": ("3D: sol sürükle döndür, sağ sürükle kaydır, tekerlek yakınlaştır, 0 sıfırla, R çevir, "
                  "W tel kafes, G ızgara, D ölçüler",
                  "3D: left-drag rotate, right-drag pan, wheel zoom, 0 reset, R flip, W wireframe, G grid, D dimensions"),
+    "sc_model_keys": ("3D: 1 zemine yatan yüz, 2 kesit, 3 ölçüler, 4 üçgenler, 5 ızgara, 6 döndür, "
+                      "7 önden, 8 yandan, 9 üstten, 0 sıfırla",
+                      "3D: 1 face on floor, 2 section, 3 dimensions, 4 triangles, 5 grid, 6 spin, "
+                      "7 front, 8 side, 9 top, 0 reset"),
+    "sc_model_section": ("3D: kesiti kaydır", "3D: move the section"),
     "sc_delete": ("Dosyayı geri dönüşüm kutusuna taşı", "Move file to Recycle Bin"),
     "sc_escape": ("Tam ekrandan / mini oynatıcıdan çık", "Exit full screen / miniplayer"),
     "sc_help": ("Bu listeyi göster", "Show this list"),

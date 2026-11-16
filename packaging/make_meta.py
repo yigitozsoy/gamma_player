@@ -103,11 +103,46 @@ def iss_extensions():
     return "\n".join(lines) + "\n"
 
 
+# Kurulum sihirbazı görselleri (Inno Setup, %100 - %200 DPI). Logo beyaz Γ; açık temada koyu boyanır.
+WIZ_SCALES = (100, 125, 150, 175, 200)
+
+
+def make_wizard_images():
+    """build/wizard/ içine görselleri yazar; installer.iss için #define satırlarını döndürür."""
+    from PIL import Image
+    out = os.path.join(ROOT, "build", "wizard")
+    os.makedirs(out, exist_ok=True)
+    logo = Image.open(os.path.join(ROOT, "gammaplayer", "assets", "logo.png")).convert("RGBA")
+    logo = logo.crop(logo.getbbox())
+    names = {}
+    for mode, color in (("light", (15, 15, 15)), ("dark", (255, 255, 255))):
+        tinted = Image.new("RGBA", logo.size, color + (0,))
+        tinted.putalpha(logo.getchannel("A"))
+        # (tür, %100 boyutu, logo yüksekliği / kısa kenar, logonun dikey yeri (None = ortada))
+        for kind, (W, H), frac, top in (("small", (58, 58), 0.62, None), ("large", (202, 386), 0.36, 0.30)):
+            files = []
+            for sc in WIZ_SCALES:
+                w, h = W * sc // 100, H * sc // 100
+                lh = int(min(w, h) * frac)
+                lw = int(logo.width * lh / logo.height)
+                img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+                y = (h - lh) // 2 if top is None else int(h * top - lh / 2)
+                img.alpha_composite(tinted.resize((lw, lh), Image.LANCZOS), ((w - lw) // 2, y))
+                fn = f"{kind}_{mode}_{sc}.png"
+                img.save(os.path.join(out, fn))
+                files.append(os.path.join("..", "build", "wizard", fn))
+            names[(kind, mode)] = ",".join(files)
+    return "".join(f'#define {k} "{names[v]}"\n' for k, v in (
+        ("WizSmall", ("small", "light")), ("WizSmallDark", ("small", "dark")),
+        ("WizLarge", ("large", "light")), ("WizLargeDark", ("large", "dark"))))
+
+
 if __name__ == "__main__":
     with open(os.path.join(HERE, "version_info.txt"), "w", encoding="utf-8") as f:
         f.write(VERSION_INFO)
     with open(os.path.join(HERE, "version.iss"), "w", encoding="utf-8-sig") as f:
         f.write(f'#define AppVersion "{__version__}"\n')
+        f.write(make_wizard_images())
     with open(os.path.join(HERE, "extensions_registry.iss"), "w", encoding="utf-8-sig") as f:
         f.write(iss_extensions())
     with open(os.path.join(HERE, "extensions_code.iss"), "w", encoding="utf-8-sig") as f:

@@ -118,6 +118,11 @@ Bunlar zor bulunmuş şeyler. Değiştirmeden önce nedenini anla.
 - **Windows Snap:** pencere çerçevesiz ama WS_THICKFRAME/WS_CAPTION stilleri ekli; `nativeEvent` içinde
   WM_NCCALCSIZE (büyütülünce çalışma alanı) ve WM_NCHITTEST (boş başlık çubuğu = HTCAPTION, kenarlar)
   işleniyor. Başlık çubuğunda ayrıca `startSystemMove` yedeği var.
+- **3D kısayolları:** 1 zemine yatan yüz (`lay_next_face`), 2 kesit (`cycle_section`; Shift+tekerlek / Shift+ok
+  kaydırır, shader'da `u_clip` + arka yüzler düz koyu = kesit yüzeyi), 3 ölçü, 4 üçgenler, 5 ızgara, 6 döndür,
+  7/8/9 önden/yandan/üstten, 0 sıfırla.
+- **python-vlc tembel içe aktarılır** (`vlc_engine._load`): import libvlc DLL'lerini yüklüyor; bilgisayar yeni
+  açılınca pencere geç görünüyordu. `VLC_ERROR` için `vlc_engine.VLC_ERROR` oku (from-import eski değeri tutar).
 - **VLC motoru tembel:** açılışı hızlandırmak için `_ensure_engine()` ile ilk event döngüsünde ya da ilk
   oynatılabilir dosyada oluşturulur. `self.engine` None olabilir, kullanmadan önce kontrol et.
 - **Küçük resimler tembel:** `ThumbnailService.request()` yalnızca açık dosyanın ±40 komşusunu kuyruğa alır;
@@ -126,12 +131,18 @@ Bunlar zor bulunmuş şeyler. Değiştirmeden önce nedenini anla.
 - **QSS renk tuzağı:** `#606060f0` Qt'de **#AARRGGBB** olarak okunur (tooltip mor çıktı). Saydam renk için
   `rgba(...)` yaz. `QColor("rgba(...)")` geçersiz, `theme.qcolor()` kullan.
 - **pyqtProperty adı** `pos` gibi QWidget metotlarıyla çakışmasın (ToggleSwitch'te `knob`).
+- **Görsel düzenleyici kaydetme:** Kaydet/Farklı kaydet/kapat önce açık kırpma çerçevesini uygular (`_end_crop(True)`),
+  `closed` sinyali kırpma modunu kapatır. Üzerine kaydedince dosya listesi değişmediği için `lib.refresh()` bir şey
+  yapmaz: `_on_image_saved` boyut/tarih/çözünürlüğü elle yeniler, küçük resmi `request_one(force=True)` ile siler-çizer.
+  `save_pil(meta_from=...)` ICC profilini ve EXIF'i (yön=1) korur.
 - **Filigran WYSIWYG:** önizlemede ve çıktıda aynı Qt PNG'si kullanılır (`scale2ref` + `overlay`).
 - **Altyazı gömme:** `setpts=PTS+A/TB,subtitles=...,setpts=PTS-STARTPTS` (kesilen parçada zamanlama doğru kalsın).
   Windows yolunda iki nokta kaçışı: `C\:/...`.
 - **Gezgin sırası:** varsayılan sıralama, klasörün Windows Gezgini'ndeki sırası (PowerShell Shell.Application COM).
 - **ffmpeg yolu:** `thumbs._find_ffmpeg()` imageio_ffmpeg'i import etmeden ikiliyi bulur (donmuş exe'de `_MEIPASS`).
 - **Donmuş (PyInstaller) exe:** VLC `<exe>\vlc\` içine gömülü; önce oraya, sonra Program Files VLC'ye bakılır.
+  build.ps1 gömülü eklentiler için `vlc-cache-gen.exe` ile `plugins.dat` üretir; o olmadan VLC her açılışta ~350
+  eklenti DLL'sini yükler (yeni kurulumda Defender yüzünden ilk açılış çok yavaş, 3.0.0'da böyleydi).
 - **3D (3.0):** `ModelViewer` ilk modelde oluşturulur (PAGE_MODEL = 4, `model_host` içinde). Alttaki kontrol
   satırı resim satırıyla ortak (`overlay.set_model_mode`): slayt düğmesi = otomatik döndür, sığdır = görünümü
   sıfırla, döndür = modeli çevir. **QOpenGLWidget KULLANMA:** ana pencereye ilk eklenince Qt bütün pencereyi
@@ -168,6 +179,10 @@ Bunlar zor bulunmuş şeyler. Değiştirmeden önce nedenini anla.
   CLSID {437a1563…}; .gltf — harici .bin/doku yan klasörden okunur). Biçim içerikten tanınır. GLB/glTF'de
   malzeme rengi + PNG/JPEG doku (512 px'e küçültülür), PLY/OFF'ta renkler çizilir; Draco/meshopt atlanır.
   Kurulum, regasm olmadan HKCU CLSID (mscoree.dll + CodeBase) ve `SystemFileAssociations\.<uzantı>\ShellEx\{e357fccd…}` yazar.
+- **Kurulum görünümü:** Inno Setup **6.7+ gerekir** (`WizardStyle=modern dynamic windows11 hidebevels`, Windows'un
+  açık/koyu temasını izler; arka plan #ffffff / #0f0f0f). Sihirbaz görselleri (Γ logosu, açık/koyu, %100-%200 DPI)
+  `make_meta.py` → `build\wizard\` içinde üretilir, yolları `version.iss`'te `WizSmall`/`WizLarge` tanımları.
+  Lisans sayfası kaldırıldı (GPL onay istemez; LICENSE.txt yine kurulur).
 - **Kurulumdaki "Dosya türleri" sayfası:** installer.iss [Code] içinde TNewCheckListBox (gruplar + tek tek uzantılar,
   hepsi tikli). Liste `make_meta.py` → `extensions_code.iss`; kayıtlar `Check: AssocSel('.mp4')`. Güncellemede
   yalnızca kaldırılan tikler `AssocOff` olarak saklanır (yeni türler tikli gelir).
@@ -235,6 +250,8 @@ Kurulum `PrivilegesRequired=lowest` (yönetici izni yok); "Birlikte aç" / Varsa
 (RegisteredApplications/Capabilities) ve isteğe bağlı "Open with gamma player" sağ tık menüsü ekler.
 Windows programın kendini varsayılan yapmasına izin vermez; kullanıcı Ayarlar › Varsayılan uygulamalar'dan seçer.
 Exe imzasız, bu yüzden SmartScreen "Yine de çalıştır" uyarısı normal.
+ProgID'lerde `EditFlags=0x10000` (FTA_OpenIsSafe) var: yoksa internetten inen (MOTW) dosyaları açarken Windows
+"Güvenlik uyarısı - Bilinmeyen yayımcı" sorar. Bu uyarının imzayla ilgisi yok (jpg imzalanamaz).
 
 ---
 

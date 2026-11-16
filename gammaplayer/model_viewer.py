@@ -33,11 +33,14 @@ attribute vec3 a_col;
 attribute vec2 a_uv;
 uniform mat4 u_mvp;
 uniform mat4 u_mv;
+uniform mat4 u_m;
 varying vec3 v_n;
 varying vec3 v_c;
 varying vec2 v_uv;
 varying vec3 v_p;
+varying vec3 v_w;
 void main() {
+    v_w = (u_m * vec4(a_pos, 1.0)).xyz;
     v_n = (u_mv * vec4(a_nrm, 0.0)).xyz;
     v_p = (u_mv * vec4(a_pos, 1.0)).xyz;
     v_c = a_col;
@@ -53,18 +56,24 @@ uniform int u_usecol;
 uniform int u_usetex;
 uniform int u_flat;
 uniform sampler2D u_tex;
+uniform int u_clipon;
+uniform vec4 u_clip;                       // kesit düzlemi: normal (xyz) ve konum (w), model dönüşünden sonra
 varying vec3 v_n;
 varying vec3 v_c;
 varying vec2 v_uv;
 varying vec3 v_p;
+varying vec3 v_w;
 void main() {
+    if (u_clipon == 1 && dot(v_w, u_clip.xyz) > u_clip.w) discard;
     if (u_flat == 1) { gl_FragColor = u_color; return; }
-    vec3 n = normalize(v_n);
-    vec3 V = normalize(-v_p);
-    if (dot(n, V) < 0.0) n = -n;          // iki yüzlü: ters normalli ağlar da aydınlık görünür
     vec4 base = u_color;
     if (u_usecol == 1) base.rgb *= v_c;
     if (u_usetex == 1) base *= texture2D(u_tex, v_uv);
+    // kesitte kesikten görünen iç yüzler (arka yüzler) düz koyu renkle: dolu kesit yüzeyi gibi görünür
+    if (u_clipon == 1 && !gl_FrontFacing) { gl_FragColor = vec4(base.rgb * 0.5, 1.0); return; }
+    vec3 n = normalize(v_n);
+    vec3 V = normalize(-v_p);
+    if (dot(n, V) < 0.0) n = -n;          // iki yüzlü: ters normalli ağlar da aydınlık görünür
     vec3 L1 = normalize(vec3(0.45, 0.65, 0.75));
     vec3 L2 = normalize(vec3(-0.7, 0.15, 0.35));
     float hemi = mix(0.26, 0.40, n.y * 0.5 + 0.5);
@@ -117,9 +126,14 @@ class _GLView(QOpenGLWindow):
     double_clicked = pyqtSignal()
     context_requested = pyqtSignal(QPoint)
     autorotate_changed = pyqtSignal(bool)
+    section_changed = pyqtSignal()
 
     FOV = 38.0
     DEF_YAW, DEF_PITCH = -35.0, 22.0
+    # zemine yatırılacak yüzler: (eksen, derece) — sırasıyla alt, ön, üst, arka, sağ, sol yüz aşağı
+    FACES = ((None, 0), ("x", 90), ("x", 180), ("x", -90), ("z", 90), ("z", -90))
+    SECTION_AXES = ("y", "x", "z")      # kesit sırası: yükseklik (katman), genişlik, derinlik
+    VIEWS = {"front": (0.0, 0.0), "side": (-90.0, 0.0), "top": (0.0, 90.0)}
 
     def __init__(self):
         super().__init__()
@@ -144,6 +158,9 @@ class _GLView(QOpenGLWindow):
         self._offscreen = False       # image(): FBO'ya çiziliyor
         self.autorotate = False
         self._rot = QMatrix4x4()      # kullanıcının "çevir" dönüşleri
+        self._face = 0                # FACES içinde zemine yatırılan yüz
+        self.section = None           # kesit ekseni ("x" / "y" / "z") ya da None
+        self.section_pos = 0.5        # kesitin model boyunca yeri (0..1)
         self.reset_view(emit=False)
         self._drag = None
         self._press = None
@@ -157,6 +174,9 @@ class _GLView(QOpenGLWindow):
     def set_model(self, model):
         self.model = model
         self._rot = QMatrix4x4()
+        self._face = 0
+        self.section = None
+        self.section_pos = 0.5
         self._pending = model
         self.reset_view(emit=True)
         self.update()
@@ -191,6 +211,52 @@ class _GLView(QOpenGLWindow):
         r.rotate(deg, *( (1, 0, 0) if axis == "x" else (0, 0, 1) if axis == "z" else (0, 1, 0)))
         self._rot = r * self._rot
         self._grid_dirty = True
+        self.update()
+
+    def lay_next_face(self, step=1):
+        """Modeli sıradaki yüzü zemine gelecek şekilde yatırır (6 yüz). Yüz numarasını (1-6) döndürür."""
+        self._face = (self._face + step) % len(self.FACES)
+        axis, deg = self.FACES[self._face]
+        r = QMatrix4x4()
+        if axis is not None:
+            r.rotate(deg, *((1, 0, 0) if axis == "x" else (0, 0, 1)))
+        self._rot = r
+        self._grid_dirty = True
+        self.update()
+        return self._face + 1
+
+    def cycle_section(self):
+        """Kesiti sırayla açar: yükseklik → genişlik → derinlik → kapalı. Yeni ekseni döndürür."""
+        order = (None,) + self.SECTION_AXES
+        self.section = order[(order.index(self.section) + 1) % len(order)]
+        self.section_pos = 0.5
+        self.update()
+        return self.section
+
+    def move_section(self, delta):
+        """Kesit düzlemini kaydırır (delta: modelin boyunun oranı). Yeni konumu (0..1) döndürür."""
+        if self.section is None:
+            return None
+        self.section_pos = max(0.0, min(1.0, self.section_pos + delta))
+        self.update()
+        self.section_changed.emit()
+        return self.section_pos
+
+    def _section_plane(self):
+        """(normal, d): dot(p, normal) > d olan kısım kesilip atılır."""
+        i = "xyz".index(self.section)
+        lo, hi = self._rotated_bounds()
+        n = [0.0, 0.0, 0.0]
+        n[i] = 1.0
+        span = hi[i] - lo[i]
+        # uçlarda yüzeyle çakışıp titremesin diye düzlem çok az içeride
+        return n, float(lo[i] + span * (1e-4 + self.section_pos * (1 - 2e-4)))
+
+    def set_view(self, name):
+        """Hazır bakış açısı: front / side / top."""
+        self.yaw, self.pitch = self.VIEWS[name]
+        self.pan = QVector3D(0, 0, 0)
+        self.set_autorotate(False)
         self.update()
 
     def set_wireframe(self, on):
@@ -464,6 +530,8 @@ class _GLView(QOpenGLWindow):
         p.setUniformValue("u_mvp", mvp)
         p.setUniformValue("u_mv", mv)
         p.setUniformValue("u_tex", 0)
+        p.setUniformValue("u_m", self._rot)
+        p.setUniformValue("u_clipon", 0)
         dark = bg.lightness() < 128   # çizgi rengi arka plana göre
 
         # ızgara (modelin altında)
@@ -482,6 +550,10 @@ class _GLView(QOpenGLWindow):
             gl.glDrawArrays(GL_LINES, 0, gn)
             p.setUniformValue("u_mvp", mvp)
 
+        if self.section is not None and self.model is not None:
+            n, d = self._section_plane()
+            p.setUniformValue("u_clip", n[0], n[1], n[2], d)
+            p.setUniformValue("u_clipon", 1)
         gl.glEnable(GL_POLYGON_OFFSET_FILL)
         gl.glPolygonOffset(1.0, 1.0)
         p.setUniformValue("u_flat", 0)
@@ -646,8 +718,10 @@ class _GLView(QOpenGLWindow):
             self.double_clicked.emit()
 
     def wheelEvent(self, e):
-        d = e.angleDelta().y()
-        if d:
+        d = e.angleDelta().y() or e.angleDelta().x()   # Shift basılıyken Windows yatay kaydırma gönderir
+        if d and self.section is not None and e.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self.move_section(0.02 * d / 120.0)          # Shift + tekerlek: kesiti kaydır
+        elif d:
             self.zoom_by(1.0 + 0.12 * (d / 120.0) if d > 0 else 1.0 / (1.0 + 0.12 * (-d / 120.0)))
         self.mouse_moved.emit()
         e.accept()

@@ -245,7 +245,8 @@ def is_writable_ext(ext):
     return ext.lower() in SAVE_FORMATS
 
 
-def save_pil(img: Image.Image, path: str, quality: int = 92):
+def save_pil(img: Image.Image, path: str, quality: int = 92, meta_from: Image.Image = None):
+    """meta_from verilirse kaynağın renk profili (ICC) ve EXIF'i (yön = 1) korunur."""
     ext = os.path.splitext(path)[1].lower()
     fmt = SAVE_FORMATS.get(ext, "PNG")
     if fmt == "HEIF":
@@ -283,4 +284,22 @@ def save_pil(img: Image.Image, path: str, quality: int = 92):
             img = img.resize((256, 256), Image.Resampling.LANCZOS)
             side = 256
         kw["sizes"] = [(s, s) for s in (16, 20, 24, 32, 40, 48, 64, 128, 256) if s <= side] or [(side, side)]
-    img.save(path, fmt, **kw)
+    if meta_from is not None and fmt in ("JPEG", "PNG", "WEBP", "TIFF", "AVIF", "HEIF"):
+        icc = meta_from.info.get("icc_profile")
+        if icc:
+            kw["icc_profile"] = icc
+        try:
+            exif = meta_from.getexif()
+            if len(exif):
+                exif[0x0112] = 1          # yön resme zaten uygulandı; ikinci kez döndürülmesin
+                kw["exif"] = exif.tobytes()
+        except Exception:
+            pass
+    try:
+        img.save(path, fmt, **kw)
+    except Exception:
+        if "exif" not in kw and "icc_profile" not in kw:
+            raise
+        kw.pop("exif", None)
+        kw.pop("icc_profile", None)
+        img.save(path, fmt, **kw)

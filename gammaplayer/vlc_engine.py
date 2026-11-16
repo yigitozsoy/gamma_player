@@ -21,12 +21,24 @@ if sys.platform == "win32" and "PYTHON_VLC_LIB_PATH" not in os.environ:
             os.environ["PYTHON_VLC_LIB_PATH"] = os.path.join(_cand, "libvlc.dll")
             break
 
-try:
-    import vlc  # noqa: E402
-    VLC_ERROR = None
-except Exception as e:  # pragma: no cover - VLC kurulu değilse
-    vlc = None
-    VLC_ERROR = str(e)
+# python-vlc, içe aktarılırken libvlc.dll + libvlccore.dll'i yükler. Bilgisayar yeni açıldığında (disk önbelleği
+# boşken) bu belirgin süre alır; pencere önce görünsün diye motor ilk kez gerektiğinde yüklenir (_load).
+vlc = None
+VLC_ERROR = None
+_loaded = False
+
+
+def _load():
+    global vlc, VLC_ERROR, _loaded
+    if not _loaded:
+        _loaded = True
+        try:
+            import vlc as _vlc
+            vlc = _vlc
+        except Exception as e:  # pragma: no cover - VLC kurulu değilse
+            VLC_ERROR = str(e)
+    return vlc
+
 
 from .config import prefs  # noqa: E402
 
@@ -68,7 +80,7 @@ class VLCEngine(QObject):
     # ------------------------------------------------------------------ kurulum
     @staticmethod
     def available() -> bool:
-        return vlc is not None
+        return _load() is not None
 
     def _instance_args(self):
         args = [

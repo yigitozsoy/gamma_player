@@ -175,6 +175,8 @@ class ImageEditPanel(QWidget):
         self.cropping = False
         self._saving = False
         self._build()
+        # Düzenleyici hangi yoldan kapanırsa kapansın (kaydet, kapat, hata) kırpma çerçevesi görüntüleyicide kalmasın
+        self.closed.connect(self._leave_crop)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(25)
@@ -681,7 +683,12 @@ class ImageEditPanel(QWidget):
         same = self._target_ext() == os.path.splitext(self.item.path)[1].lower()
         self.b_save.setText(t("save") if same else t("convert_save"))
 
+    def _leave_crop(self):
+        self.cropping = False
+        self.viewer.set_crop_mode(False)
+
     def save_overwrite(self):
+        self._end_crop(True)   # açık kırpma çerçevesi, kaydedilen resme uygulanır
         ext = self._target_ext()
         base, src = os.path.splitext(self.item.path)
         if ext == src.lower():
@@ -699,6 +706,7 @@ class ImageEditPanel(QWidget):
             self._save(target)
 
     def save_as(self):
+        self._end_crop(True)
         base, _ = os.path.splitext(self.item.path)
         ext = self._target_ext()
         default = base + "_" + t("edited_suffix") + ext
@@ -723,8 +731,15 @@ class ImageEditPanel(QWidget):
         def work():
             out = render(full, st, final=True)
             tmp = path + ".gamma-tmp" + os.path.splitext(path)[1]
-            image_io.save_pil(out, tmp, quality=q)
-            os.replace(tmp, path)
+            try:
+                image_io.save_pil(out, tmp, quality=q, meta_from=full)
+                os.replace(tmp, path)
+            except Exception:
+                try:
+                    os.remove(tmp)      # yarım kalan geçici dosya klasörde kalmasın
+                except OSError:
+                    pass
+                raise
             return path
 
         def done(p):
@@ -748,6 +763,8 @@ class ImageEditPanel(QWidget):
     def request_close(self):
         if self._saving:
             return False
+        if self.cropping:
+            self._end_crop(True)        # çizilmiş ama uygulanmamış kırpma da kaydedilmemiş değişiklik sayılır
         if self.dirty():
             box = QMessageBox(self)
             box.setWindowTitle(t("edit_image_title"))
